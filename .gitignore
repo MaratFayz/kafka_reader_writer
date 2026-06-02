@@ -1,3 +1,6 @@
 *.pem
 *.crt
 kafka_reader_writer
+krw
+main
+*.db
