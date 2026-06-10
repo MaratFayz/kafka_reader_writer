@@ -15,7 +15,8 @@ type KafkaTopicList struct {
 }
 
 type ModelChangerKafkaTopic interface {
-	SetActivePane(activePane int)
+	SetActivePaneAfterKafkaTopicChosen(activePane int)
+	SetChosenKafkaTopic(name string)
 }
 
 type ufKafkaTopic struct {
@@ -27,17 +28,19 @@ type ufKafkaTopic struct {
 func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd {
 	var title string
 
-	// if i, ok := m.SelectedItem().(Item); ok {
-	// 	title = i.Title()
-	// } else {
-	// 	return nil
-	// }
-
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.SetActivePane(2)
+			u.model.SetActivePaneAfterKafkaTopicChosen(2)
+
+			if i, ok := m.SelectedItem().(ItemKafkaTopic); ok {
+				title = i.Title()
+				u.model.SetChosenKafkaTopic(title)
+			} else {
+				return nil
+			}
+
 			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
 
 		case key.Matches(msg, u.keys.Remove):
@@ -192,7 +195,7 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic) *KafkaTopicList {
 
 	delegate := newItemDelegateKafkaTopic(delegateKeys, &styles, model)
 	list := list.New(items, delegate, 0, 0)
-	list.Title = "Kafka Clusters"
+	list.Title = "Kafka Topics"
 	list.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			listKeys.ToggleSpinner,

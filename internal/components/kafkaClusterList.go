@@ -15,7 +15,8 @@ type KafkaClusterList struct {
 }
 
 type ModelChangerKafkaCluster interface {
-	SetActivePane(activePane int)
+	SetActivePaneAfterKafkaClusterChosen(activePane int)
+	SetChosenKafkaCluster(name string)
 }
 
 type ufKafkaCluster struct {
@@ -27,17 +28,18 @@ type ufKafkaCluster struct {
 func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 	var title string
 
-	// if i, ok := m.SelectedItem().(Item); ok {
-	// 	title = i.Title()
-	// } else {
-	// 	return nil
-	// }
-
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.SetActivePane(1)
+			u.model.SetActivePaneAfterKafkaClusterChosen(1)
+			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
+				title = i.Title()
+				u.model.SetChosenKafkaCluster(title)
+			} else {
+				return nil
+			}
+
 			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
 
 		case key.Matches(msg, u.keys.Remove):
