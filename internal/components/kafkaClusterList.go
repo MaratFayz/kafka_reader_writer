@@ -1,6 +1,10 @@
 package components
 
 import (
+	"fmt"
+	"marat/fayz/kafka_reader_writer/internal/localstorage"
+	"marat/fayz/kafka_reader_writer/internal/windows"
+
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -207,4 +211,93 @@ func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
 	}
 
 	return &KafkaClusterList{&list, delegateKeys, listKeys, &styles}
+}
+
+func CreateKafkaClustersListAddValues(ls localstorage.LocalStorage, model *windows.Model) *KafkaClusterList {
+	kafkaClusterList := CreateKafkaClustersList(model)
+
+	kc := ls.GetKafkaClusters()
+
+	var namedUsers []windows.KafkaCluster = make([]windows.KafkaCluster, len(kc))
+	for i, user := range kc {
+		namedUsers[i] = user // Каждый элемент преобразуется отдельно
+	}
+	fmt.Println(namedUsers)
+	for i, v := range namedUsers {
+		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title(), v.Url()))
+	}
+
+	return kafkaClusterList
+}
+
+func (m *KafkaClusterList) Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// if m.activePane == 0 {
+	// 	kcl := m.kafkaClusterList.List
+	// 	keys := m.kafkaClusterList.ListKeys
+	// 	delegateKeys := m.kafkaClusterList.DelegateKeys
+
+	// 	switch msg := msg.(type) {
+	// 	case tea.BackgroundColorMsg:
+	// 		// m.darkBG = msg.IsDark()
+	// 		// m.updateListProperties()
+	// 		fmt.Printf("%s", msg)
+	// 		return m, nil
+
+	// 	case tea.WindowSizeMsg:
+	// 		// m.width, m.height = msg.Width, msg.Height
+	// 		// m.updateListProperties()
+	// 		return m, nil
+	// 	}
+
+	// 	switch msg := msg.(type) {
+	// 	case tea.KeyPressMsg:
+	// 		// Don't match any of the keys below if we're actively filtering.
+	// 		if kcl.FilterState() == list.Filtering {
+	// 			break
+	// 		}
+
+	// 		switch {
+	// 		case key.Matches(msg, keys.ToggleSpinner):
+	// 			cmd := kcl.ToggleSpinner()
+	// 			statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.activePane))
+	// 			return m, tea.Batch(cmd, statusCmd)
+
+	// 		case key.Matches(msg, keys.ToggleTitleBar):
+	// 			v := !kcl.ShowTitle()
+	// 			kcl.SetShowTitle(v)
+	// 			kcl.SetShowFilter(v)
+	// 			kcl.SetFilteringEnabled(v)
+	// 			return m, nil
+
+	// 		case key.Matches(msg, keys.ToggleStatusBar):
+	// 			kcl.SetShowStatusBar(!kcl.ShowStatusBar())
+	// 			return m, nil
+
+	// 		case key.Matches(msg, keys.TogglePagination):
+	// 			kcl.SetShowPagination(!kcl.ShowPagination())
+	// 			return m, nil
+
+	// 		case key.Matches(msg, keys.ToggleHelpMenu):
+	// 			kcl.SetShowHelp(!kcl.ShowHelp())
+	// 			return m, nil
+
+	// 			// case key.Matches(msg, keys.InsertItem):
+	// 			// 	delegateKeys.Remove.SetEnabled(true)
+	// 			// 	// newItem := m.itemGenerator.next()
+	// 			// 	newItem := components.NewItemKafkaCluster("aaa", "bbb")
+	// 			// 	insCmd := kcl.InsertItem(0, newItem)
+	// 			// 	statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.activePane))
+	// 			// 	return m, tea.Batch(insCmd, statusCmd)
+	// 		}
+	// 	}
+
+	// 	// This will also call our delegate's update function.
+	// 	newListModel, cmd := kcl.Update(msg)
+	// 	m.kafkaClusterList.List = &newListModel
+	// 	cmds = append(cmds, cmd)
+	// }
+
+	return model, nil
 }

@@ -20,7 +20,7 @@ func New() *App {
 }
 
 func (a *App) Run() error {
-	p := tea.NewProgram(a.diContainer.Model())
+	p := tea.NewProgram(a.diContainer.FullModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Atas, there's been an error: %v", err)
 		os.Exit(1)

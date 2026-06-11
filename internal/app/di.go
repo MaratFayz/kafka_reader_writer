@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/closer"
+	"marat/fayz/kafka_reader_writer/internal/components"
 	"marat/fayz/kafka_reader_writer/internal/config"
 	"marat/fayz/kafka_reader_writer/internal/database"
 	"marat/fayz/kafka_reader_writer/internal/localstorage"
@@ -13,15 +14,21 @@ import (
 )
 
 type diContainer struct {
-	appConfig    *config.Config
-	db           database.DB
-	localStorage localstorage.LocalStorage
-	model        *windows.Model
+	appConfig        *config.Config
+	db               database.DB
+	localStorage     localstorage.LocalStorage
+	model            *windows.Model
+	fullModel        *windows.Model
+	kafkaClusterList *components.KafkaClusterList
+	kafkaTopicList   *components.KafkaTopicList
 
-	muAppConfig    sync.Mutex
-	muDb           sync.Mutex
-	muLocalStorage sync.Mutex
-	muModel        sync.Mutex
+	muAppConfig        sync.Mutex
+	muDb               sync.Mutex
+	muLocalStorage     sync.Mutex
+	muModel            sync.Mutex
+	muFullModel        sync.Mutex
+	muKafkaClusterList sync.Mutex
+	muKafkaTopicList   sync.Mutex
 }
 
 // newDIContainer создаёт новый пустой контейнер.
@@ -102,4 +109,53 @@ func (d *diContainer) Model() *windows.Model {
 	}
 
 	return d.model
+}
+
+func (d *diContainer) FullModel() *windows.Model {
+	if d.fullModel == nil {
+		d.muFullModel.Lock()
+		defer d.muFullModel.Unlock()
+
+		if d.fullModel != nil {
+			return d.fullModel
+		}
+
+		slog.Info("Init Full Model", "model", d.fullModel)
+		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent())
+		d.fullModel = fullModel
+	}
+
+	return d.fullModel
+}
+
+func (d *diContainer) KafkaClusterListComponent() *components.KafkaClusterList {
+	if d.kafkaClusterList == nil {
+		d.muKafkaClusterList.Lock()
+		defer d.muKafkaClusterList.Unlock()
+
+		if d.kafkaClusterList != nil {
+			return d.kafkaClusterList
+		}
+
+		slog.Info("Init KafkaClusterListComponent", "KafkaClusterListComponent", d.kafkaClusterList)
+		d.kafkaClusterList = components.CreateKafkaClustersListAddValues(d.LocalStorage(), d.Model())
+	}
+
+	return d.kafkaClusterList
+}
+
+func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
+	if d.kafkaTopicList == nil {
+		d.muKafkaTopicList.Lock()
+		defer d.muKafkaTopicList.Unlock()
+
+		if d.kafkaTopicList != nil {
+			return d.kafkaTopicList
+		}
+
+		slog.Info("Init KafkaTopicListComponent", "KafkaTopicListComponent", d.kafkaTopicList)
+		d.kafkaTopicList = components.CreateKafkaTopicListAddValues(d.LocalStorage(), d.Model())
+	}
+
+	return d.kafkaTopicList
 }
