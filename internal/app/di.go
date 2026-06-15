@@ -128,7 +128,7 @@ func (d *diContainer) FullModel() *windows.Model {
 	return d.fullModel
 }
 
-func (d *diContainer) KafkaClusterListComponent() *components.KafkaClusterList {
+func (d *diContainer) KafkaClusterListComponent() windows.KafkaClusterList {
 	if d.kafkaClusterList == nil {
 		d.muKafkaClusterList.Lock()
 		defer d.muKafkaClusterList.Unlock()

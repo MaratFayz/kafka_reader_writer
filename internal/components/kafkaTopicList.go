@@ -1,11 +1,14 @@
 package components
 
 import (
+	"fmt"
 	"marat/fayz/kafka_reader_writer/internal/localstorage"
 	"marat/fayz/kafka_reader_writer/internal/windows"
+	"strconv"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -15,6 +18,14 @@ type KafkaTopicList struct {
 	DelegateKeys *DelegateKeyMapKafkaTopic
 	ListKeys     *ListKeyMapKafkaTopic
 	Styles       *StylesKafkaTopic
+}
+
+func (k *KafkaTopicList) GetList() *list.Model {
+	return k.List
+}
+
+func (k *KafkaTopicList) GetStyles() windows.StylesKafkaCluster {
+	return k.Styles
 }
 
 type ModelChangerKafkaTopic interface {
@@ -160,6 +171,12 @@ type StylesKafkaTopic struct {
 	StatusMessage lipgloss.Style
 }
 
+func (s *StylesKafkaTopic) GetApp() lipgloss.Style {
+	return s.App
+}
+func (s *StylesKafkaTopic) GetTitle() lipgloss.Style         { return s.Title }
+func (s *StylesKafkaTopic) GetStatusMessage() lipgloss.Style { return s.StatusMessage }
+
 func newStylesKafkaTopic(darkBG bool) StylesKafkaTopic {
 	lightDark := lipgloss.LightDark(darkBG)
 
@@ -230,165 +247,103 @@ func CreateKafkaTopicListAddValues(ls localstorage.LocalStorage, model *windows.
 	return kafkaTopicList
 }
 
-func (m *KafkaTopicList) Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd) {
-	// var cmds []tea.Cmd
+func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 
-	// if m.activePane == 0 {
-	// 	kcl := m.kafkaClusterList.List
-	// 	keys := m.kafkaClusterList.ListKeys
-	// 	delegateKeys := m.kafkaClusterList.DelegateKeys
+	if m.ActivePane == 1 {
+		kcl := kt.List
+		keys := kt.ListKeys
+		delegateKeys := kt.DelegateKeys
 
-	// 	switch msg := msg.(type) {
-	// 	case tea.BackgroundColorMsg:
-	// 		// m.darkBG = msg.IsDark()
-	// 		// m.updateListProperties()
-	// 		fmt.Printf("%s", msg)
-	// 		return m, nil
+		if m.IsLoadTopics == false {
+			cmd := loadTopics()
+			cmds = append(cmds, cmd)
+			m.IsLoadTopics = true
+		}
 
-	// 	case tea.WindowSizeMsg:
-	// 		// m.width, m.height = msg.Width, msg.Height
-	// 		// m.updateListProperties()
-	// 		return m, nil
-	// 	}
+		switch msg := msg.(type) {
+		case tea.BackgroundColorMsg:
+			// m.darkBG = msg.IsDark()
+			// m.updateListProperties()
+			fmt.Printf("%s", msg)
+			return m, nil
 
-	// 	switch msg := msg.(type) {
-	// 	case tea.KeyPressMsg:
-	// 		// Don't match any of the keys below if we're actively filtering.
-	// 		if kcl.FilterState() == list.Filtering {
-	// 			break
-	// 		}
+		case tea.WindowSizeMsg:
+			// m.width, m.height = msg.Width, msg.Height
+			// m.updateListProperties()
+			return m, nil
+		case statusMsg:
+			delegateKeys.Remove.SetEnabled(true)
+			// newItem := m.itemGenerator.next()
+			for i, sm := range msg {
+				newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
+				insCmd := kcl.InsertItem(i, newItem)
+				cmds = append(cmds, insCmd)
+			}
 
-	// 		switch {
-	// 		case key.Matches(msg, keys.ToggleSpinner):
-	// 			cmd := kcl.ToggleSpinner()
-	// 			statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.activePane))
-	// 			return m, tea.Batch(cmd, statusCmd)
+			statusCmd := kcl.NewStatusMessage(fmt.Sprintf("Added %d items", len(cmds)))
+			cmds = append(cmds, statusCmd)
+			return m, tea.Batch(cmds...)
+		}
 
-	// 		case key.Matches(msg, keys.ToggleTitleBar):
-	// 			v := !kcl.ShowTitle()
-	// 			kcl.SetShowTitle(v)
-	// 			kcl.SetShowFilter(v)
-	// 			kcl.SetFilteringEnabled(v)
-	// 			return m, nil
+		switch msg := msg.(type) {
+		case tea.KeyPressMsg:
+			// Don't match any of the keys below if we're actively filtering.
+			if kcl.FilterState() == list.Filtering {
+				break
+			}
 
-	// 		case key.Matches(msg, keys.ToggleStatusBar):
-	// 			kcl.SetShowStatusBar(!kcl.ShowStatusBar())
-	// 			return m, nil
+			switch {
+			case key.Matches(msg, keys.ToggleSpinner):
+				cmd := kcl.ToggleSpinner()
+				statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.ActivePane))
+				return m, tea.Batch(cmd, statusCmd)
 
-	// 		case key.Matches(msg, keys.TogglePagination):
-	// 			kcl.SetShowPagination(!kcl.ShowPagination())
-	// 			return m, nil
+			case key.Matches(msg, keys.ToggleTitleBar):
+				v := !kcl.ShowTitle()
+				kcl.SetShowTitle(v)
+				kcl.SetShowFilter(v)
+				kcl.SetFilteringEnabled(v)
+				return m, nil
 
-	// 		case key.Matches(msg, keys.ToggleHelpMenu):
-	// 			kcl.SetShowHelp(!kcl.ShowHelp())
-	// 			return m, nil
+			case key.Matches(msg, keys.ToggleStatusBar):
+				kcl.SetShowStatusBar(!kcl.ShowStatusBar())
+				return m, nil
 
-	// 			// case key.Matches(msg, keys.InsertItem):
-	// 			// 	delegateKeys.Remove.SetEnabled(true)
-	// 			// 	// newItem := m.itemGenerator.next()
-	// 			// 	newItem := components.NewItemKafkaCluster("aaa", "bbb")
-	// 			// 	insCmd := kcl.InsertItem(0, newItem)
-	// 			// 	statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.activePane))
-	// 			// 	return m, tea.Batch(insCmd, statusCmd)
-	// 		}
-	// 	}
+			case key.Matches(msg, keys.TogglePagination):
+				kcl.SetShowPagination(!kcl.ShowPagination())
+				return m, nil
 
-	// 	// This will also call our delegate's update function.
-	// 	newListModel, cmd := kcl.Update(msg)
-	// 	m.kafkaClusterList.List = &newListModel
-	// 	cmds = append(cmds, cmd)
-	// }else if m.activePane == 1 {
-	// kcl := m.kafkaTopicList.List
-	// keys := m.kafkaTopicList.ListKeys
-	// delegateKeys := m.kafkaTopicList.DelegateKeys
+			case key.Matches(msg, keys.ToggleHelpMenu):
+				kcl.SetShowHelp(!kcl.ShowHelp())
+				return m, nil
 
-	// if m.isLoadTopics == false {
-	// 	cmd := loadTopics()
-	// 	cmds = append(cmds, cmd)
-	// 	m.isLoadTopics = true
-	// }
+			case key.Matches(msg, keys.InsertItem):
+				delegateKeys.Remove.SetEnabled(true)
+				// newItem := m.itemGenerator.next()
+				newItem := NewItemKafkaTopic("aaa", "bbb")
+				insCmd := kcl.InsertItem(0, newItem)
+				statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.ActivePane))
+				return m, tea.Batch(insCmd, statusCmd)
+			}
+		}
 
-	// switch msg := msg.(type) {
-	// case tea.BackgroundColorMsg:
-	// 	// m.darkBG = msg.IsDark()
-	// 	// m.updateListProperties()
-	// 	fmt.Printf("%s", msg)
-	// 	return m, nil
+		// This will also call our delegate's update function.
+		newListModel, cmd := kcl.Update(msg)
+		kt.List = &newListModel
+		cmds = append(cmds, cmd)
+	} else if m.ActivePane != 1 {
+		// slog.Info("XXXXXX", "pane", m.ActivePane)
+		switch msg := msg.(type) {
+		case spinner.TickMsg:
+			newListModel, cmd := kt.List.Update(msg)
+			kt.List = &newListModel
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
+		}
+	}
 
-	// case tea.WindowSizeMsg:
-	// 	// m.width, m.height = msg.Width, msg.Height
-	// 	// m.updateListProperties()
-	// 	return m, nil
-	// case spinner.TickMsg:
-	// 	newListModel, cmd := m.kafkaClusterList.List.Update(msg)
-	// 	m.kafkaClusterList.List = &newListModel
-	// 	cmds = append(cmds, cmd)
-	// 	return m, tea.Batch(cmds...)
-	// case statusMsg:
-	// 	delegateKeys.Remove.SetEnabled(true)
-	// 	// newItem := m.itemGenerator.next()
-	// 	for i, sm := range msg {
-	// 		newItem := components.NewItemKafkaTopic(strconv.Itoa(i), sm)
-	// 		insCmd := kcl.InsertItem(i, newItem)
-	// 		cmds = append(cmds, insCmd)
-	// 	}
-
-	// 	statusCmd := kcl.NewStatusMessage(fmt.Sprintf("Added %d items", len(cmds)))
-	// 	cmds = append(cmds, statusCmd)
-	// 	return m, tea.Batch(cmds...)
-	// }
-
-	// switch msg := msg.(type) {
-	// case tea.KeyPressMsg:
-	// 	// Don't match any of the keys below if we're actively filtering.
-	// 	if kcl.FilterState() == list.Filtering {
-	// 		break
-	// 	}
-
-	// 	switch {
-	// 	case key.Matches(msg, keys.ToggleSpinner):
-	// 			cmd := kcl.ToggleSpinner()
-	// 			statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.activePane))
-	// 			return m, tea.Batch(cmd, statusCmd)
-
-	// 		case key.Matches(msg, keys.ToggleTitleBar):
-	// 			v := !kcl.ShowTitle()
-	// 			kcl.SetShowTitle(v)
-	// 			kcl.SetShowFilter(v)
-	// 			kcl.SetFilteringEnabled(v)
-	// 			return m, nil
-
-	// 		case key.Matches(msg, keys.ToggleStatusBar):
-	// 			kcl.SetShowStatusBar(!kcl.ShowStatusBar())
-	// 			return m, nil
-
-	// 		case key.Matches(msg, keys.TogglePagination):
-	// 			kcl.SetShowPagination(!kcl.ShowPagination())
-	// 			return m, nil
-
-	// 		case key.Matches(msg, keys.ToggleHelpMenu):
-	// 			kcl.SetShowHelp(!kcl.ShowHelp())
-	// 			return m, nil
-
-	// 		case key.Matches(msg, keys.InsertItem):
-	// 			delegateKeys.Remove.SetEnabled(true)
-	// 			// newItem := m.itemGenerator.next()
-	// 			newItem := components.NewItemKafkaTopic("aaa", "bbb")
-	// 			insCmd := kcl.InsertItem(0, newItem)
-	// 			statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.activePane))
-	// 			return m, tea.Batch(insCmd, statusCmd)
-	// 		}
-	// 	}
-
-	// 	// This will also call our delegate's update function.
-	// 	newListModel, cmd := kcl.Update(msg)
-	// 	m.kafkaTopicList.List = &newListModel
-	// 	cmds = append(cmds, cmd)
-	// }
-
-	// return m, tea.Batch(cmds...)
-
-	return model, nil
+	return m, tea.Batch(cmds...)
 }
 
 type statusMsg []string
@@ -396,7 +351,8 @@ type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
-func loadTopics() tea.Cmd {
+func (ktl *KafkaTopicList) loadTopics() tea.Cmd {
+	// ktl.kafkaConnectorProvider.GetTopicsByClusterName()
 	return func() tea.Msg {
 		return statusMsg([]string{"a", "b", "c"})
 	}

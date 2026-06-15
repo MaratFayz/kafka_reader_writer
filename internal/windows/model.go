@@ -15,30 +15,40 @@ type Model struct {
 
 	kafkaTopics        map[string]int
 	selectedKafkaTopic string
-	isLoadTopics       bool
+	IsLoadTopics       bool
 
 	kafkaPartitions        map[int]int
 	selectedKafkaPartition int
 
-	activePane int //0-cluster,1-topic,2-partitions,3-readMessages,4-writeMessages
+	ActivePane int //0-cluster,1-topic,2-partitions,3-readMessages,4-writeMessages
 
-	kafkaClusterList    kafkaClusterList
-	kafkaTopicList      kafkaTopicList
+	kafkaClusterList    KafkaClusterList
+	kafkaTopicList      KafkaTopicList
 	kafkaPartitionList  list.Model
 	sendMessageTextArea textarea.Model
 	sentMessagesList    list.Model
 }
 
-type kafkaClusterList interface {
-	update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+type KafkaClusterList interface {
+	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+	GetList() *list.Model
+	GetStyles() StylesKafkaCluster
 }
 
-type kafkaTopicList interface {
-	update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+type KafkaTopicList interface {
+	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+	GetList() *list.Model
+	GetStyles() StylesKafkaCluster
+}
+
+type StylesKafkaCluster interface {
+	GetApp() lipgloss.Style
+	GetTitle() lipgloss.Style
+	GetStatusMessage() lipgloss.Style
 }
 
 func (m *Model) SetActivePaneAfterKafkaClusterChosen(activePane int) {
-	m.activePane = activePane
+	m.ActivePane = activePane
 }
 
 func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
@@ -46,7 +56,7 @@ func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
 }
 
 func (m *Model) SetActivePaneAfterKafkaTopicChosen(activePane int) {
-	m.activePane = activePane
+	m.ActivePane = activePane
 }
 
 func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
@@ -68,13 +78,13 @@ func InitialModel(ls localstorage.LocalStorage) *Model {
 
 	model := &Model{
 		// sendMessageTextArea: ta,
-		activePane: 0,
+		ActivePane: 0,
 	}
 
 	return model
 }
 
-func PostInitModel(model *Model, kafkaClusterList kafkaClusterList, kafkaTopicListComponent kafkaTopicList) *Model {
+func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 
@@ -92,32 +102,34 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// var cmds []tea.Cmd
 
-	_, cmd := m.kafkaClusterList.update(msg, m)
-	_, cmd2 := m.kafkaTopicList.update(msg, m)
+	// slog.Info("Active pane", "pane", m.ActivePane)
+
+	_, cmd2 := m.kafkaTopicList.Update(msg, m)
+	_, cmd := m.kafkaClusterList.Update(msg, m)
 
 	return m, tea.Batch(cmd, cmd2)
 }
 
 func (m *Model) View() tea.View {
-	kcl := m.kafkaClusterList.List()
-	styles := m.kafkaClusterList.Styles()
+	kcl := m.kafkaClusterList.GetList()
+	styles := m.kafkaClusterList.GetStyles()
 
 	// Update list size.
-	h, v := styles.App.GetFrameSize()
+	h, v := styles.GetApp().GetFrameSize()
 	kcl.SetSize(100-h, 100-v)
 
 	// Update the model and list styles.
-	kcl.Styles.Title = styles.Title
+	kcl.Styles.Title = styles.GetTitle()
 
-	ktl := m.kafkaTopicList.List()
-	stylesKtl := m.kafkaTopicList.Styles()
+	ktl := m.kafkaTopicList.GetList()
+	stylesKtl := m.kafkaTopicList.GetStyles()
 
 	// Update list size.
-	h2, v2 := stylesKtl.App.GetFrameSize()
+	h2, v2 := stylesKtl.GetApp().GetFrameSize()
 	ktl.SetSize(100-h2, 100-v2)
 
 	// Update the model and list styles.
-	ktl.Styles.Title = stylesKtl.Title
+	ktl.Styles.Title = stylesKtl.GetTitle()
 
 	v3 := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View()))
 	v3.AltScreen = true
