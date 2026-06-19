@@ -7,6 +7,7 @@ import (
 	"marat/fayz/kafka_reader_writer/internal/components"
 	"marat/fayz/kafka_reader_writer/internal/config"
 	"marat/fayz/kafka_reader_writer/internal/database"
+	"marat/fayz/kafka_reader_writer/internal/kafka/connection"
 	"marat/fayz/kafka_reader_writer/internal/localstorage"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"os"
@@ -14,21 +15,23 @@ import (
 )
 
 type diContainer struct {
-	appConfig        *config.Config
-	db               database.DB
-	localStorage     localstorage.LocalStorage
-	model            *windows.Model
-	fullModel        *windows.Model
-	kafkaClusterList *components.KafkaClusterList
-	kafkaTopicList   *components.KafkaTopicList
+	appConfig              *config.Config
+	db                     database.DB
+	localStorage           localstorage.LocalStorage
+	model                  *windows.Model
+	fullModel              *windows.Model
+	kafkaClusterList       *components.KafkaClusterList
+	kafkaTopicList         *components.KafkaTopicList
+	kafkaConnectorProvider *connection.KafkaConnectorProvider
 
-	muAppConfig        sync.Mutex
-	muDb               sync.Mutex
-	muLocalStorage     sync.Mutex
-	muModel            sync.Mutex
-	muFullModel        sync.Mutex
-	muKafkaClusterList sync.Mutex
-	muKafkaTopicList   sync.Mutex
+	muAppConfig              sync.Mutex
+	muDb                     sync.Mutex
+	muLocalStorage           sync.Mutex
+	muModel                  sync.Mutex
+	muFullModel              sync.Mutex
+	muKafkaClusterList       sync.Mutex
+	muKafkaTopicList         sync.Mutex
+	muKafkaConnectorProvider sync.Mutex
 }
 
 // newDIContainer создаёт новый пустой контейнер.
@@ -154,8 +157,24 @@ func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
 		}
 
 		slog.Info("Init KafkaTopicListComponent", "KafkaTopicListComponent", d.kafkaTopicList)
-		d.kafkaTopicList = components.CreateKafkaTopicListAddValues(d.LocalStorage(), d.Model())
+		d.kafkaTopicList = components.CreateKafkaTopicsList(d.Model(), d.KafkaConnectorProvider())
 	}
 
 	return d.kafkaTopicList
+}
+
+func (d *diContainer) KafkaConnectorProvider() components.KafkaConnectorProvider {
+	if d.kafkaConnectorProvider == nil {
+		d.muKafkaConnectorProvider.Lock()
+		defer d.muKafkaConnectorProvider.Unlock()
+
+		if d.kafkaConnectorProvider != nil {
+			return d.kafkaConnectorProvider
+		}
+
+		slog.Info("Init KafkaConnectorProvider", "KafkaConnectorProvider", d.kafkaConnectorProvider)
+		d.kafkaConnectorProvider = connection.NewKafkaConnectorProvider()
+	}
+
+	return d.kafkaConnectorProvider
 }

@@ -47,7 +47,7 @@ type localStorage struct {
 
 func (ls localStorage) GetKafkaClusters() []kafkaCluster {
 	clusters := make([]kafkaCluster, 0, 1)
-	clusters = append(clusters, kafkaCluster{title: "sfa", url: "172.16.15.171:9093"})
+	clusters = append(clusters, kafkaCluster{title: "sfa", url: "172.16.15.171:9093", username: "SFA", password: "SFADEV123", trustStorePath: "./c/certificate.pem"})
 	return clusters
 }
 

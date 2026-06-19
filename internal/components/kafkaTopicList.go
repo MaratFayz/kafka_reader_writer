@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"marat/fayz/kafka_reader_writer/internal/localstorage"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -14,10 +13,12 @@ import (
 )
 
 type KafkaTopicList struct {
-	List         *list.Model
-	DelegateKeys *DelegateKeyMapKafkaTopic
-	ListKeys     *ListKeyMapKafkaTopic
-	Styles       *StylesKafkaTopic
+	List                   *list.Model
+	DelegateKeys           *DelegateKeyMapKafkaTopic
+	ListKeys               *ListKeyMapKafkaTopic
+	Styles                 *StylesKafkaTopic
+	model                  ModelChangerKafkaTopic
+	kafkaConnectorProvider KafkaConnectorProvider
 }
 
 func (k *KafkaTopicList) GetList() *list.Model {
@@ -31,6 +32,11 @@ func (k *KafkaTopicList) GetStyles() windows.StylesKafkaCluster {
 type ModelChangerKafkaTopic interface {
 	SetActivePaneAfterKafkaTopicChosen(activePane int)
 	SetChosenKafkaTopic(name string)
+	SetTopicsForCluster(clusterName string, topics []string)
+}
+
+type KafkaConnectorProvider interface {
+	GetTopicsByClusterName(clusterName windows.KafkaCluster) []string
 }
 
 type ufKafkaTopic struct {
@@ -205,7 +211,7 @@ func NewItemKafkaTopic(title string, description string) ItemKafkaTopic {
 	return ItemKafkaTopic{title: title, description: description}
 }
 
-func CreateKafkaTopicsList(model ModelChangerKafkaTopic) *KafkaTopicList {
+func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider KafkaConnectorProvider) *KafkaTopicList {
 	styles := newStylesKafkaTopic(false) // default to dark background styles
 
 	delegateKeys := NewDelegateKeyMapKafkaTopic()
@@ -227,24 +233,7 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic) *KafkaTopicList {
 		}
 	}
 
-	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles}
-}
-
-func CreateKafkaTopicListAddValues(ls localstorage.LocalStorage, model *windows.Model) *KafkaTopicList {
-	kafkaTopicList := CreateKafkaTopicsList(model)
-
-	// kc := ls.GetKafkaClusters()
-
-	// var namedUsers []kafkaCluster = make([]kafkaCluster, len(kc))
-	// for i, user := range kc {
-	// namedUsers[i] = user // Каждый элемент преобразуется отдельно
-	// }
-	// fmt.Println(namedUsers)
-	// for i, v := range namedUsers {
-	// 	kafkaTopicList.List.InsertItem(i, NewItemKafkaCluster(v.Title(), v.Url()))
-	// }
-
-	return kafkaTopicList
+	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles, model, kafkaConnectorProvider}
 }
 
 func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
@@ -256,7 +245,10 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 		delegateKeys := kt.DelegateKeys
 
 		if m.IsLoadTopics == false {
-			cmd := loadTopics()
+			// v := m.KafkaClusters[m.SelectedKafkaCluster]
+			// slog.Error("Toppp", "r", v, "r2", m.SelectedKafkaCluster, "a", m.KafkaClusters)
+
+			cmd := kt.loadTopics(m.KafkaClusters[m.SelectedKafkaCluster])
 			cmds = append(cmds, cmd)
 			m.IsLoadTopics = true
 		}
@@ -276,7 +268,10 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 			delegateKeys.Remove.SetEnabled(true)
 			// newItem := m.itemGenerator.next()
 			for i, sm := range msg {
+				// slog.Info("Topic", "t", sm)
 				newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
+				// newItem := NewItemKafkaTopic(sm, "")
+
 				insCmd := kcl.InsertItem(i, newItem)
 				cmds = append(cmds, insCmd)
 			}
@@ -351,9 +346,12 @@ type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
-func (ktl *KafkaTopicList) loadTopics() tea.Cmd {
-	// ktl.kafkaConnectorProvider.GetTopicsByClusterName()
+func (ktl *KafkaTopicList) loadTopics(cluster windows.KafkaCluster) tea.Cmd {
+	// print(cluster)
+	topicNames := ktl.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
+	ktl.model.SetTopicsForCluster(cluster.Title(), topicNames)
+
 	return func() tea.Msg {
-		return statusMsg([]string{"a", "b", "c"})
+		return statusMsg(topicNames)
 	}
 }

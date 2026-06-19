@@ -233,12 +233,15 @@ func CreateKafkaClustersListAddValues(ls localstorage.LocalStorage, model *windo
 
 	kc := ls.GetKafkaClusters()
 
-	var namedUsers []windows.KafkaCluster = make([]windows.KafkaCluster, len(kc))
-	for i, user := range kc {
-		namedUsers[i] = user // Каждый элемент преобразуется отдельно
+	var clusterList []windows.KafkaCluster = make([]windows.KafkaCluster, len(kc))
+	clusterMap := make(map[string]windows.KafkaCluster, len(kc))
+	for i, cluster := range kc {
+		clusterList[i] = cluster // Каждый элемент преобразуется отдельно
+		clusterMap[cluster.Title()] = cluster
 	}
-	fmt.Println(namedUsers)
-	for i, v := range namedUsers {
+	model.KafkaClusters = clusterMap
+	// fmt.Println(clusterList)
+	for i, v := range clusterList {
 		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title(), v.Url()))
 	}
 

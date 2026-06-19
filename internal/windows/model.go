@@ -10,10 +10,10 @@ import (
 )
 
 type Model struct {
-	kafkaClusters        []KafkaCluster
-	selectedKafkaCluster string
+	KafkaClusters        map[string]KafkaCluster
+	SelectedKafkaCluster string
 
-	kafkaTopics        map[string]int
+	kafkaTopics        map[string][]string
 	selectedKafkaTopic string
 	IsLoadTopics       bool
 
@@ -52,7 +52,7 @@ func (m *Model) SetActivePaneAfterKafkaClusterChosen(activePane int) {
 }
 
 func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
-	m.selectedKafkaCluster = selectedKafkaCluster
+	m.SelectedKafkaCluster = selectedKafkaCluster
 }
 
 func (m *Model) SetActivePaneAfterKafkaTopicChosen(activePane int) {
@@ -61,6 +61,12 @@ func (m *Model) SetActivePaneAfterKafkaTopicChosen(activePane int) {
 
 func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
 	m.selectedKafkaTopic = selectedKafkaTopic
+}
+
+func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
+	// slog.Error("aaa", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
+	m.kafkaTopics[kafkaCluster] = topics
+	// slog.Error("aaa2", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
 }
 
 type KafkaCluster interface {
@@ -78,7 +84,9 @@ func InitialModel(ls localstorage.LocalStorage) *Model {
 
 	model := &Model{
 		// sendMessageTextArea: ta,
-		ActivePane: 0,
+		ActivePane:    0,
+		KafkaClusters: make(map[string]KafkaCluster),
+		kafkaTopics:   make(map[string][]string),
 	}
 
 	return model
@@ -115,8 +123,10 @@ func (m *Model) View() tea.View {
 	styles := m.kafkaClusterList.GetStyles()
 
 	// Update list size.
-	h, v := styles.GetApp().GetFrameSize()
-	kcl.SetSize(100-h, 100-v)
+	h, _ := styles.GetApp().GetFrameSize()
+	kcl.SetSize(100-h, 30)
+	// h, v := styles.GetApp().GetFrameSize()
+	// kcl.SetSize(100-h, 100-v)
 
 	// Update the model and list styles.
 	kcl.Styles.Title = styles.GetTitle()
@@ -125,8 +135,12 @@ func (m *Model) View() tea.View {
 	stylesKtl := m.kafkaTopicList.GetStyles()
 
 	// Update list size.
-	h2, v2 := stylesKtl.GetApp().GetFrameSize()
-	ktl.SetSize(100-h2, 100-v2)
+	// h2, v2 := stylesKtl.GetApp().GetFrameSize()
+	// ktl.SetSize(100-h2, 100-v2)
+
+	h2, _ := stylesKtl.GetApp().GetFrameSize()
+	// slog.Info("V", "Kafkfa Topic", v2, "v1", v)
+	ktl.SetSize(100-h2, 30)
 
 	// Update the model and list styles.
 	ktl.Styles.Title = stylesKtl.GetTitle()
