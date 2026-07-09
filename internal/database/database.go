@@ -18,6 +18,40 @@ type db struct {
 
 type DB interface {
 	Close() error
+	GetKafkaClusters() []*kafkaClusterDb
+}
+
+type kafkaClusterDb struct {
+	title              string
+	url                string
+	trustStorePath     string
+	trustStorePassword string
+	username           string
+	password           string
+	saslMechanism      string
+}
+
+func (kc *kafkaClusterDb) Title() string {
+	return kc.title
+}
+
+func (kc *kafkaClusterDb) Url() string {
+	return kc.url
+}
+func (kc *kafkaClusterDb) TrustStorePath() string {
+	return kc.trustStorePath
+}
+func (kc *kafkaClusterDb) TrustStorePassword() string {
+	return kc.trustStorePassword
+}
+func (kc *kafkaClusterDb) Username() string {
+	return kc.username
+}
+func (kc *kafkaClusterDb) Password() string {
+	return kc.password
+}
+func (kc *kafkaClusterDb) SaslMechanism() string {
+	return kc.saslMechanism
 }
 
 func CreateOrGetDb(databaseUrl string) (DB, error) {
@@ -76,4 +110,26 @@ func (d *db) Close() error {
 	}
 
 	return nil
+}
+
+func (d *db) GetKafkaClusters() []*kafkaClusterDb {
+	clusters := make([]*kafkaClusterDb, 0, 1)
+	clusters = append(clusters, &kafkaClusterDb{title: "sfa", url: "172.16.15.171:9093", username: "SFA", password: "SFADEV123", trustStorePath: "./c/certificate.pem"})
+	return clusters
+
+	// d.mu.Lock()
+	// defer d.mu.Unlock()
+
+	// // row := d.conn.QueryRow("select count(*) AS count from file_local where parent_path = $1, file_name = $2", filePath, fileName)
+	// row := d.conn.QueryRow("select count(*) AS count from files_local fl join watched_local_dirs wd on wd.id = fl.dir where wd.path = $1 and fl.name = $2", filePath, fileName)
+
+	// var count int = 0
+	// err := row.Scan(&count)
+
+	// if err != nil {
+	// 	slog.Error("Ошибка при получении существования файла из БД", "err", err)
+	// 	return false, ExistFileOrNotError
+	// } else {
+	// 	return true, nil
+	// }
 }

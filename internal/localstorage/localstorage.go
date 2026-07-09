@@ -14,6 +14,16 @@ type kafkaCluster struct {
 	saslMechanism      string
 }
 
+type kafkaClusterLocalStorage interface {
+	Title() string
+	Url() string
+	TrustStorePath() string
+	TrustStorePassword() string
+	Username() string
+	Password() string
+	SaslMechanism() string
+}
+
 func (kc kafkaCluster) Title() string {
 	return kc.title
 }
@@ -38,19 +48,31 @@ func (kc kafkaCluster) SaslMechanism() string {
 }
 
 type LocalStorage interface {
-	GetKafkaClusters() []kafkaCluster
+	GetKafkaClusters() []*kafkaCluster
 }
 
 type localStorage struct {
 	db database.DB
 }
 
-func (ls localStorage) GetKafkaClusters() []kafkaCluster {
-	clusters := make([]kafkaCluster, 0, 1)
-	clusters = append(clusters, kafkaCluster{title: "sfa", url: "172.16.15.171:9093", username: "SFA", password: "SFADEV123", trustStorePath: "./c/certificate.pem"})
+func (ls *localStorage) GetKafkaClusters() []*kafkaCluster {
+	a := ls.db.GetKafkaClusters()
+
+	clusters := make([]*kafkaCluster, 0, 1)
+
+	for _, v := range a {
+		cluster := ls.mapKafkaClusters(v)
+		clusters = append(clusters, cluster)
+	}
+
 	return clusters
 }
 
+func (ls *localStorage) mapKafkaClusters(v kafkaClusterLocalStorage) *kafkaCluster {
+	return &kafkaCluster{title: v.Title(), url: v.Url(), username: v.Username(),
+		password: v.Password(), trustStorePath: v.TrustStorePath()}
+}
+
 func NewLocalStorage(db database.DB) LocalStorage {
-	return localStorage{db: db}
+	return &localStorage{db: db}
 }

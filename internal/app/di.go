@@ -15,23 +15,30 @@ import (
 )
 
 type diContainer struct {
-	appConfig              *config.Config
-	db                     database.DB
-	localStorage           localstorage.LocalStorage
-	model                  *windows.Model
-	fullModel              *windows.Model
-	kafkaClusterList       *components.KafkaClusterList
-	kafkaTopicList         *components.KafkaTopicList
-	kafkaConnectorProvider *connection.KafkaConnectorProvider
+	appConfig                      *config.Config
+	db                             database.DB
+	localStorage                   localstorage.LocalStorage
+	model                          *windows.Model
+	fullModel                      *windows.Model
+	kafkaClusterList               *components.KafkaClusterList
+	kafkaTopicList                 *components.KafkaTopicList
+	kafkaConnector                 *connection.KafkaConnectorProvider
+	kafkaPartitionList             *components.KafkaPartitionList
+	kafkaReadWriteTabs             *components.KafkaReadWriteTabsComponent
+	kafkaSendMessageTextArea       *components.KafkaSendMessageTextAreaComponent
+	kafkaSendMessageTableComponent *components.KafkaSendMessageTableComponent
 
-	muAppConfig              sync.Mutex
-	muDb                     sync.Mutex
-	muLocalStorage           sync.Mutex
-	muModel                  sync.Mutex
-	muFullModel              sync.Mutex
-	muKafkaClusterList       sync.Mutex
-	muKafkaTopicList         sync.Mutex
-	muKafkaConnectorProvider sync.Mutex
+	muAppConfig                sync.Mutex
+	muDb                       sync.Mutex
+	muLocalStorage             sync.Mutex
+	muModel                    sync.Mutex
+	muFullModel                sync.Mutex
+	muKafkaClusterList         sync.Mutex
+	muKafkaTopicList           sync.Mutex
+	muKafkaConnector           sync.Mutex
+	muKafkaPartitionList       sync.Mutex
+	muKafkaReadWriteTabs       sync.Mutex
+	muKafkaSendMessageTextArea sync.Mutex
 }
 
 // newDIContainer создаёт новый пустой контейнер.
@@ -124,7 +131,8 @@ func (d *diContainer) FullModel() *windows.Model {
 		}
 
 		slog.Info("Init Full Model", "model", d.fullModel)
-		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent())
+		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
+			d.KafkaReadWriteTabsComponent())
 		d.fullModel = fullModel
 	}
 
@@ -157,24 +165,105 @@ func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
 		}
 
 		slog.Info("Init KafkaTopicListComponent", "KafkaTopicListComponent", d.kafkaTopicList)
-		d.kafkaTopicList = components.CreateKafkaTopicsList(d.Model(), d.KafkaConnectorProvider())
+		d.kafkaTopicList = components.CreateKafkaTopicsList(d.Model(), d.KafkaTopicsProvider())
 	}
 
 	return d.kafkaTopicList
 }
 
-func (d *diContainer) KafkaConnectorProvider() components.KafkaConnectorProvider {
-	if d.kafkaConnectorProvider == nil {
-		d.muKafkaConnectorProvider.Lock()
-		defer d.muKafkaConnectorProvider.Unlock()
+func (d *diContainer) KafkaTopicsProvider() components.KafkaTopicsProvider {
+	if d.kafkaConnector == nil {
+		d.muKafkaConnector.Lock()
+		defer d.muKafkaConnector.Unlock()
 
-		if d.kafkaConnectorProvider != nil {
-			return d.kafkaConnectorProvider
+		if d.kafkaConnector != nil {
+			return d.kafkaConnector
 		}
 
-		slog.Info("Init KafkaConnectorProvider", "KafkaConnectorProvider", d.kafkaConnectorProvider)
-		d.kafkaConnectorProvider = connection.NewKafkaConnectorProvider()
+		slog.Info("Init KafkaTopicsProvider", "KafkaTopicsProvider", d.kafkaConnector)
+		d.kafkaConnector = connection.NewKafkaConnector()
 	}
 
-	return d.kafkaConnectorProvider
+	return d.kafkaConnector
+}
+
+func (d *diContainer) KafkaPartitionsProvider() components.KafkaPartitionsProvider {
+	if d.kafkaConnector == nil {
+		d.muKafkaConnector.Lock()
+		defer d.muKafkaConnector.Unlock()
+
+		if d.kafkaConnector != nil {
+			return d.kafkaConnector
+		}
+
+		slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
+		d.kafkaConnector = connection.NewKafkaConnector()
+	}
+
+	return d.kafkaConnector
+}
+
+func (d *diContainer) KafkaPartitionListComponent() *components.KafkaPartitionList {
+	if d.kafkaPartitionList == nil {
+		d.muKafkaPartitionList.Lock()
+		defer d.muKafkaPartitionList.Unlock()
+
+		if d.kafkaPartitionList != nil {
+			return d.kafkaPartitionList
+		}
+
+		slog.Info("Init KafkaPartitionListComponent", "KafkaPartitionListComponent", d.kafkaPartitionList)
+		d.kafkaPartitionList = components.CreateKafkaPartitionsList(d.Model(), d.KafkaPartitionsProvider())
+	}
+
+	return d.kafkaPartitionList
+}
+
+func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTabsComponent {
+	if d.kafkaReadWriteTabs == nil {
+		d.muKafkaReadWriteTabs.Lock()
+		defer d.muKafkaReadWriteTabs.Unlock()
+
+		if d.kafkaReadWriteTabs != nil {
+			return d.kafkaReadWriteTabs
+		}
+
+		slog.Info("Init KafkaReadWriteTabsComponent", "KafkaReadWriteTabsComponent", d.kafkaReadWriteTabs)
+		d.kafkaReadWriteTabs = components.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
+			d.KafkaSendMessageTableComponent())
+	}
+
+	return d.kafkaReadWriteTabs
+}
+
+func (d *diContainer) KafkaSendMessageTextAreaComponent() *components.KafkaSendMessageTextAreaComponent {
+	if d.kafkaSendMessageTextArea == nil {
+		d.muKafkaSendMessageTextArea.Lock()
+		defer d.muKafkaSendMessageTextArea.Unlock()
+
+		if d.kafkaSendMessageTextArea != nil {
+			return d.kafkaSendMessageTextArea
+		}
+
+		slog.Info("Init KafkaSendMessageTextAreaComponent", "KafkaSendMessageTextAreaComponent", d.kafkaSendMessageTextArea)
+		d.kafkaSendMessageTextArea = components.CreateKafkaSendMessageTextArea(d.Model())
+	}
+
+	return d.kafkaSendMessageTextArea
+}
+
+func (d *diContainer) KafkaSendMessageTableComponent() *components.KafkaSendMessageTableComponent {
+	if d.kafkaSendMessageTableComponent == nil {
+		d.muKafkaSendMessageTextArea.Lock()
+		defer d.muKafkaSendMessageTextArea.Unlock()
+
+		if d.kafkaSendMessageTableComponent != nil {
+			return d.kafkaSendMessageTableComponent
+		}
+
+		slog.Info("Init KafkaSendMessageTableComponent", "KafkaSendMessageTableComponent", d.kafkaSendMessageTableComponent)
+		d.kafkaSendMessageTableComponent = components.CreateKafkaSendMessageTable(d.Model())
+	}
+
+	return d.kafkaSendMessageTableComponent
 }

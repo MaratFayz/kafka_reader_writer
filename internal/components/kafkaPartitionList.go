@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -13,51 +12,51 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-type KafkaTopicList struct {
-	List                   *list.Model
-	DelegateKeys           *DelegateKeyMapKafkaTopic
-	ListKeys               *ListKeyMapKafkaTopic
-	Styles                 *StylesKafkaTopic
-	model                  ModelChangerKafkaTopic
-	kafkaConnectorProvider KafkaTopicsProvider
+type KafkaPartitionList struct {
+	List                    *list.Model
+	DelegateKeys            *DelegateKeyMapKafkaPartition
+	ListKeys                *ListKeyMapKafkaPartition
+	Styles                  *StylesKafkaPartition
+	model                   ModelChangerKafkaPartition
+	kafkaPartitionsProvider KafkaPartitionsProvider
 }
 
-func (k *KafkaTopicList) GetList() *list.Model {
+func (k *KafkaPartitionList) GetList() *list.Model {
 	return k.List
 }
 
-func (k *KafkaTopicList) GetStyles() windows.StylesKafkaCluster {
+func (k *KafkaPartitionList) GetStyles() windows.StylesKafkaCluster {
 	return k.Styles
 }
 
-type ModelChangerKafkaTopic interface {
-	SetActivePaneAfterKafkaTopicChosen(activePane int)
-	SetChosenKafkaTopic(name string)
-	SetTopicsForCluster(clusterName string, topics []string)
+type KafkaPartitionsProvider interface {
+	GetPartitionsByClusterNameAndTopic(topicName string, cluster windows.KafkaCluster) []int
 }
 
-type KafkaTopicsProvider interface {
-	GetTopicsByClusterName(clusterName windows.KafkaCluster) ([]string, error)
+type ModelChangerKafkaPartition interface {
+	SetActivePaneAfterKafkaPartitionChosen(activePane int)
+	SetChosenKafkaPartition(name string)
+	SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int)
 }
 
-type ufKafkaTopic struct {
-	model  ModelChangerKafkaTopic
-	keys   *DelegateKeyMapKafkaTopic
-	styles *StylesKafkaTopic
+type ufKafkaPartition struct {
+	model  ModelChangerKafkaPartition
+	keys   *DelegateKeyMapKafkaPartition
+	styles *StylesKafkaPartition
 }
 
-func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd {
+func (u *ufKafkaPartition) updateFuncKafkaPartition(msg tea.Msg, m *list.Model) tea.Cmd {
 	var title string
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.SetActivePaneAfterKafkaTopicChosen(2)
+			u.model.SetActivePaneAfterKafkaPartitionChosen(3)
 
-			if i, ok := m.SelectedItem().(ItemKafkaTopic); ok {
-				title = i.Description()
-				u.model.SetChosenKafkaTopic(title)
+			if i, ok := m.SelectedItem().(ItemKafkaPartition); ok {
+				title = i.Title()
+				u.model.SetChosenKafkaPartition(title)
 			} else {
 				return nil
 			}
@@ -77,11 +76,11 @@ func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd 
 	return nil
 }
 
-func newItemDelegateKafkaTopic(keys *DelegateKeyMapKafkaTopic, styles *StylesKafkaTopic, model ModelChangerKafkaTopic) list.DefaultDelegate {
+func newItemDelegateKafkaPartition(keys *DelegateKeyMapKafkaPartition, styles *StylesKafkaPartition, model ModelChangerKafkaPartition) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
-	uf := ufKafkaTopic{model: model, keys: keys, styles: styles}
+	uf := ufKafkaPartition{model: model, keys: keys, styles: styles}
 
-	d.UpdateFunc = uf.updateFuncKafkaTopic
+	d.UpdateFunc = uf.updateFuncKafkaPartition
 
 	help := []key.Binding{keys.Choose, keys.Remove}
 
@@ -96,14 +95,14 @@ func newItemDelegateKafkaTopic(keys *DelegateKeyMapKafkaTopic, styles *StylesKaf
 	return d
 }
 
-type DelegateKeyMapKafkaTopic struct {
+type DelegateKeyMapKafkaPartition struct {
 	Choose key.Binding
 	Remove key.Binding
 }
 
 // Additional short help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d DelegateKeyMapKafkaTopic) ShortHelp() []key.Binding {
+func (d DelegateKeyMapKafkaPartition) ShortHelp() []key.Binding {
 	return []key.Binding{
 		d.Choose,
 		d.Remove,
@@ -112,7 +111,7 @@ func (d DelegateKeyMapKafkaTopic) ShortHelp() []key.Binding {
 
 // Additional full help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d DelegateKeyMapKafkaTopic) FullHelp() [][]key.Binding {
+func (d DelegateKeyMapKafkaPartition) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
 			d.Choose,
@@ -121,8 +120,8 @@ func (d DelegateKeyMapKafkaTopic) FullHelp() [][]key.Binding {
 	}
 }
 
-func NewDelegateKeyMapKafkaTopic() *DelegateKeyMapKafkaTopic {
-	return &DelegateKeyMapKafkaTopic{
+func NewDelegateKeyMapKafkaPartition() *DelegateKeyMapKafkaPartition {
+	return &DelegateKeyMapKafkaPartition{
 		Choose: key.NewBinding(
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "choose"),
@@ -134,8 +133,8 @@ func NewDelegateKeyMapKafkaTopic() *DelegateKeyMapKafkaTopic {
 	}
 }
 
-func newListKeyMapKafkaTopic() *ListKeyMapKafkaTopic {
-	return &ListKeyMapKafkaTopic{
+func newListKeyMapKafkaPartition() *ListKeyMapKafkaPartition {
+	return &ListKeyMapKafkaPartition{
 		InsertItem: key.NewBinding(
 			key.WithKeys("a"),
 			key.WithHelp("a", "add item"),
@@ -163,7 +162,7 @@ func newListKeyMapKafkaTopic() *ListKeyMapKafkaTopic {
 	}
 }
 
-type ListKeyMapKafkaTopic struct {
+type ListKeyMapKafkaPartition struct {
 	ToggleSpinner    key.Binding
 	ToggleTitleBar   key.Binding
 	ToggleStatusBar  key.Binding
@@ -172,22 +171,22 @@ type ListKeyMapKafkaTopic struct {
 	InsertItem       key.Binding
 }
 
-type StylesKafkaTopic struct {
+type StylesKafkaPartition struct {
 	App           lipgloss.Style
 	Title         lipgloss.Style
 	StatusMessage lipgloss.Style
 }
 
-func (s *StylesKafkaTopic) GetApp() lipgloss.Style {
+func (s *StylesKafkaPartition) GetApp() lipgloss.Style {
 	return s.App
 }
-func (s *StylesKafkaTopic) GetTitle() lipgloss.Style         { return s.Title }
-func (s *StylesKafkaTopic) GetStatusMessage() lipgloss.Style { return s.StatusMessage }
+func (s *StylesKafkaPartition) GetTitle() lipgloss.Style         { return s.Title }
+func (s *StylesKafkaPartition) GetStatusMessage() lipgloss.Style { return s.StatusMessage }
 
-func newStylesKafkaTopic(darkBG bool) StylesKafkaTopic {
+func newStylesKafkaPartition(darkBG bool) StylesKafkaPartition {
 	lightDark := lipgloss.LightDark(darkBG)
 
-	return StylesKafkaTopic{
+	return StylesKafkaPartition{
 		App: lipgloss.NewStyle().
 			Padding(1, 2),
 		Title: lipgloss.NewStyle().
@@ -199,30 +198,30 @@ func newStylesKafkaTopic(darkBG bool) StylesKafkaTopic {
 	}
 }
 
-type ItemKafkaTopic struct {
+type ItemKafkaPartition struct {
 	title       string
 	description string
 }
 
-func (i ItemKafkaTopic) Title() string       { return i.title }
-func (i ItemKafkaTopic) Description() string { return i.description }
-func (i ItemKafkaTopic) FilterValue() string { return i.title }
+func (i ItemKafkaPartition) Title() string       { return i.title }
+func (i ItemKafkaPartition) Description() string { return i.description }
+func (i ItemKafkaPartition) FilterValue() string { return i.title }
 
-func NewItemKafkaTopic(title string, description string) ItemKafkaTopic {
-	return ItemKafkaTopic{title: title, description: description}
+func NewItemKafkaPartition(title string, description string) ItemKafkaPartition {
+	return ItemKafkaPartition{title: title, description: description}
 }
 
-func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider KafkaTopicsProvider) *KafkaTopicList {
-	styles := newStylesKafkaTopic(false) // default to dark background styles
+func CreateKafkaPartitionsList(model ModelChangerKafkaPartition, kafkaPartitionsProvider KafkaPartitionsProvider) *KafkaPartitionList {
+	styles := newStylesKafkaPartition(false) // default to dark background styles
 
-	delegateKeys := NewDelegateKeyMapKafkaTopic()
-	listKeys := newListKeyMapKafkaTopic()
+	delegateKeys := NewDelegateKeyMapKafkaPartition()
+	listKeys := newListKeyMapKafkaPartition()
 
 	items := make([]list.Item, 0)
 
-	delegate := newItemDelegateKafkaTopic(delegateKeys, &styles, model)
+	delegate := newItemDelegateKafkaPartition(delegateKeys, &styles, model)
 	list := list.New(items, delegate, 0, 0)
-	list.Title = "Kafka Topics"
+	list.Title = "Kafka Partitions"
 	list.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			listKeys.ToggleSpinner,
@@ -234,24 +233,24 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider 
 		}
 	}
 
-	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles, model, kafkaConnectorProvider}
+	return &KafkaPartitionList{&list, delegateKeys, listKeys, &styles, model, kafkaPartitionsProvider}
 }
 
-func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
+func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if m.ActivePane == 1 {
+	if m.ActivePane == 2 {
 		kcl := kt.List
 		keys := kt.ListKeys
 		delegateKeys := kt.DelegateKeys
 
-		if m.IsLoadTopics == false {
+		if m.IsLoadPartitions == false {
 			// v := m.KafkaClusters[m.SelectedKafkaCluster]
 			// slog.Error("Toppp", "r", v, "r2", m.SelectedKafkaCluster, "a", m.KafkaClusters)
 
-			cmd := kt.loadTopics(m.KafkaClusters[m.SelectedKafkaCluster])
+			cmd := kt.loadPartitions(m.KafkaClusters[m.SelectedKafkaCluster], m.SelectedKafkaTopic)
 			cmds = append(cmds, cmd)
-			m.IsLoadTopics = true
+			m.IsLoadPartitions = true
 		}
 
 		switch msg := msg.(type) {
@@ -265,12 +264,12 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 			// m.width, m.height = msg.Width, msg.Height
 			// m.updateListProperties()
 			return m, nil
-		case kafkaTopicsMsg:
+		case kafkaPartitionsMsg:
 			delegateKeys.Remove.SetEnabled(true)
 			// newItem := m.itemGenerator.next()
 			for i, sm := range msg {
 				// slog.Info("Topic", "t", sm)
-				newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
+				newItem := NewItemKafkaPartition(strconv.Itoa(i), strconv.Itoa(sm))
 				// newItem := NewItemKafkaTopic(sm, "")
 
 				insCmd := kcl.InsertItem(i, newItem)
@@ -317,7 +316,7 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 			case key.Matches(msg, keys.InsertItem):
 				delegateKeys.Remove.SetEnabled(true)
 				// newItem := m.itemGenerator.next()
-				newItem := NewItemKafkaTopic("aaa", "bbb")
+				newItem := NewItemKafkaPartition("aaa", "bbb")
 				insCmd := kcl.InsertItem(0, newItem)
 				statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.ActivePane))
 				return m, tea.Batch(insCmd, statusCmd)
@@ -328,7 +327,7 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 		newListModel, cmd := kcl.Update(msg)
 		kt.List = &newListModel
 		cmds = append(cmds, cmd)
-	} else if m.ActivePane != 1 {
+	} else if m.ActivePane != 2 {
 		// slog.Info("XXXXXX", "pane", m.ActivePane)
 		switch msg := msg.(type) {
 		case spinner.TickMsg:
@@ -342,20 +341,18 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 	return m, tea.Batch(cmds...)
 }
 
-type kafkaTopicsMsg []string
-type kafkaTopicErrMsg struct{ err error }
+type kafkaPartitionsMsg []int
+type errMsg struct{ err error }
 
-func (e kafkaTopicErrMsg) Error() string { return e.err.Error() }
+func (e errMsg) Error() string { return e.err.Error() }
 
-func (ktl *KafkaTopicList) loadTopics(cluster windows.KafkaCluster) tea.Cmd {
+func (ktl *KafkaPartitionList) loadPartitions(cluster windows.KafkaCluster, topicName string) tea.Cmd {
 	return func() tea.Msg {
-		// slog.Error("asd", "cluster", cluster)
-		topicNames, err := ktl.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
-		if err != nil {
-			slog.Error("Error during getting topic names", "topicNames", err)
-		}
-		ktl.model.SetTopicsForCluster(cluster.Title(), topicNames)
+		// print(cluster)
+		partitions := ktl.kafkaPartitionsProvider.GetPartitionsByClusterNameAndTopic(topicName, cluster)
+		ktl.model.SetPartitionsForClusterAndTopic(cluster.Title(), topicName, partitions)
+		// slog.Error("v", "v", partitions)
 
-		return kafkaTopicsMsg(topicNames)
+		return kafkaPartitionsMsg(partitions)
 	}
 }

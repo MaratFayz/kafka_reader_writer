@@ -1,10 +1,10 @@
 package windows
 
 import (
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/localstorage"
 
 	list "charm.land/bubbles/v2/list"
-	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -14,19 +14,24 @@ type Model struct {
 	SelectedKafkaCluster string
 
 	kafkaTopics        map[string][]string
-	selectedKafkaTopic string
+	SelectedKafkaTopic string
 	IsLoadTopics       bool
 
-	kafkaPartitions        map[int]int
-	selectedKafkaPartition int
+	kafkaPartitions        map[string]map[string][]int
+	selectedKafkaPartition string
+	IsLoadPartitions       bool
+	ActivePane             int //0-cluster,1-topic,2-partitions,3-tabs
 
-	ActivePane int //0-cluster,1-topic,2-partitions,3-readMessages,4-writeMessages
+	kafkaClusterList   KafkaClusterList
+	kafkaTopicList     KafkaTopicList
+	kafkaPartitionList KafkaPartitionList
+	kafkaReadWriteTabs KafkaReadWriteTabsComponent
+}
 
-	kafkaClusterList    KafkaClusterList
-	kafkaTopicList      KafkaTopicList
-	kafkaPartitionList  list.Model
-	sendMessageTextArea textarea.Model
-	sentMessagesList    list.Model
+type KafkaReadWriteTabsComponent interface {
+	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+	View() string
+	Init() tea.Cmd
 }
 
 type KafkaClusterList interface {
@@ -36,6 +41,12 @@ type KafkaClusterList interface {
 }
 
 type KafkaTopicList interface {
+	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
+	GetList() *list.Model
+	GetStyles() StylesKafkaCluster
+}
+
+type KafkaPartitionList interface {
 	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
 	GetList() *list.Model
 	GetStyles() StylesKafkaCluster
@@ -60,13 +71,43 @@ func (m *Model) SetActivePaneAfterKafkaTopicChosen(activePane int) {
 }
 
 func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
-	m.selectedKafkaTopic = selectedKafkaTopic
+	m.SelectedKafkaTopic = selectedKafkaTopic
 }
 
 func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
 	// slog.Error("aaa", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
 	m.kafkaTopics[kafkaCluster] = topics
 	// slog.Error("aaa2", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
+}
+
+func (m *Model) SetActivePaneAfterKafkaPartitionChosen(activePane int) {
+	m.ActivePane = activePane
+}
+
+func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
+	m.selectedKafkaPartition = selectedKafkaPartition
+}
+
+func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int) {
+	if m.kafkaPartitions == nil {
+		m.kafkaPartitions = make(map[string]map[string][]int)
+	}
+
+	c, ok := m.kafkaPartitions[clusterName]
+	if !ok {
+		m.kafkaPartitions[clusterName] = make(map[string][]int)
+	}
+	c = m.kafkaPartitions[clusterName]
+
+	t, ok := c[topicName]
+	if !ok {
+		c[topicName] = make([]int, 0)
+	}
+	t = c[topicName]
+
+	c[topicName] = append(t, partitions...)
+
+	slog.Info("A", "a", m.ActivePane)
 }
 
 type KafkaCluster interface {
@@ -84,17 +125,23 @@ func InitialModel(ls localstorage.LocalStorage) *Model {
 
 	model := &Model{
 		// sendMessageTextArea: ta,
-		ActivePane:    0,
-		KafkaClusters: make(map[string]KafkaCluster),
-		kafkaTopics:   make(map[string][]string),
+		ActivePane:       0,
+		KafkaClusters:    make(map[string]KafkaCluster),
+		kafkaTopics:      make(map[string][]string),
+		kafkaPartitions:  make(map[string]map[string][]int),
+		IsLoadTopics:     false,
+		IsLoadPartitions: false,
 	}
 
 	return model
 }
 
-func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList) *Model {
+func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList,
+	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
+	model.kafkaPartitionList = kafkaPartitionListComponent
+	model.kafkaReadWriteTabs = kafkaReadWriteTabsComponent
 
 	return model
 }
@@ -112,10 +159,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// slog.Info("Active pane", "pane", m.ActivePane)
 
+	_, cmd4 := m.kafkaReadWriteTabs.Update(msg, m)
+	_, cmd3 := m.kafkaPartitionList.Update(msg, m)
 	_, cmd2 := m.kafkaTopicList.Update(msg, m)
 	_, cmd := m.kafkaClusterList.Update(msg, m)
 
-	return m, tea.Batch(cmd, cmd2)
+	return m, tea.Batch(cmd, cmd2, cmd3, cmd4)
 }
 
 func (m *Model) View() tea.View {
@@ -123,8 +172,9 @@ func (m *Model) View() tea.View {
 	styles := m.kafkaClusterList.GetStyles()
 
 	// Update list size.
-	h, _ := styles.GetApp().GetFrameSize()
-	kcl.SetSize(100-h, 30)
+	// h, _ := styles.GetApp().GetFrameSize()
+	// kcl.SetSize(100-h, 30)
+	kcl.SetSize(50, 30)
 	// h, v := styles.GetApp().GetFrameSize()
 	// kcl.SetSize(100-h, 100-v)
 
@@ -138,14 +188,30 @@ func (m *Model) View() tea.View {
 	// h2, v2 := stylesKtl.GetApp().GetFrameSize()
 	// ktl.SetSize(100-h2, 100-v2)
 
-	h2, _ := stylesKtl.GetApp().GetFrameSize()
+	// h2, _ := stylesKtl.GetApp().GetFrameSize()
 	// slog.Info("V", "Kafkfa Topic", v2, "v1", v)
-	ktl.SetSize(100-h2, 30)
+	// ktl.SetSize(100-h2, 30)
+	ktl.SetSize(50, 30)
 
 	// Update the model and list styles.
 	ktl.Styles.Title = stylesKtl.GetTitle()
 
-	v3 := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View()))
+	kpl := m.kafkaPartitionList.GetList()
+	stylesKpl := m.kafkaPartitionList.GetStyles()
+
+	// Update list size.
+	// h2, v2 := stylesKtl.GetApp().GetFrameSize()
+	// ktl.SetSize(100-h2, 100-v2)
+
+	// h3, _ := stylesKpl.GetApp().GetFrameSize()
+	// slog.Info("V", "Kafkfa Topic", v2, "v1", v)
+	// kpl.SetSize(100-h3, 30)
+	kpl.SetSize(50, 30)
+
+	// Update the model and list styles.
+	kpl.Styles.Title = stylesKpl.GetTitle()
+
+	v3 := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View(), kpl.View(), m.kafkaReadWriteTabs.View()))
 	v3.AltScreen = true
 
 	return v3

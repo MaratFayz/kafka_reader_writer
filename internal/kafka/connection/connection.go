@@ -8,7 +8,6 @@ import (
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -16,44 +15,82 @@ import (
 )
 
 type KafkaConnectorProvider struct {
+	topics      map[string][]string
+	partitions  map[string]map[string][]int
+	connections map[string]*kafka.Conn
 }
 
-func NewKafkaConnectorProvider() *KafkaConnectorProvider {
-	return &KafkaConnectorProvider{}
+func NewKafkaConnector() *KafkaConnectorProvider {
+	return &KafkaConnectorProvider{
+		topics:      make(map[string][]string),
+		partitions:  make(map[string]map[string][]int),
+		connections: make(map[string]*kafka.Conn),
+	}
 }
 
-func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.KafkaCluster) []string {
+func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.KafkaCluster) ([]string, error) {
+	if v, ok := k.topics[clusterName.Title()]; ok == true {
+		slog.Error("in map have topics", "v", v)
+
+		return v, nil
+	}
+
+	// slog.Error("in map NOT topics")
+
+	var conn *kafka.Conn
+	if v, ok := k.connections[clusterName.Title()]; ok == true {
+		slog.Error("in map have connection", "v", v)
+
+		conn = v
+	}
+
+	// slog.Error("in map NOT connections")
+
 	conn, err := createConnection(clusterName.Username(), clusterName.Password(), clusterName.TrustStorePath(), clusterName.Url())
 	if err != nil {
-		slog.Error("COnenction to Kafak error")
+		slog.Error("Connection to Kafka error")
 	}
+
 	partitions, err := conn.ReadPartitions()
 	if err != nil {
 		slog.Error("Partitions in Kafka error")
 	}
 
-	// Собираем имена топиков
-	m := map[string]struct{}{}
+	topics := map[string]struct{}{}
+	partitionMap := map[string][]int{}
 	for _, p := range partitions {
-		if p.Error != nil {
-			continue
-		}
+		topics[p.Topic] = struct{}{}
 
-		if len(strings.TrimSpace(p.Topic)) > 0 {
-			m[strings.TrimSpace(p.Topic)] = struct{}{}
+		pv, ok := partitionMap[p.Topic]
+		if !ok {
+			partitionMap[p.Topic] = make([]int, 0)
 		}
+		pv = partitionMap[p.Topic]
+		pv = append(pv, p.ID)
+		partitionMap[p.Topic] = pv
 	}
 
-	partitions2 := make([]string, 0, len(m))
-	for k := range m {
-		partitions2 = append(partitions2, k)
+	for _, v := range partitionMap {
+		sort.Ints(v)
 	}
 
-	sort.Strings(partitions2)
+	topicsList := make([]string, 0, len(topics))
+	for k := range topics {
+		topicsList = append(topicsList, k)
+	}
 
-	// slog.Info("Topics", "topics", partitions2)
-	// log.Fatal("XXX")
-	return partitions2
+	sort.Strings(topicsList)
+
+	k.topics[clusterName.Title()] = topicsList
+	if _, ok := k.partitions[clusterName.Title()]; ok != true {
+		k.partitions[clusterName.Title()] = make(map[string][]int)
+	}
+
+	k.partitions[clusterName.Title()] = partitionMap
+
+	// slog.Error("in kafka", "v", k)
+
+	return topicsList, nil
 }
 
 func createConnection(username, password, certificateFilePath, brokerUrl string) (*kafka.Conn, error) {
@@ -94,6 +131,15 @@ func createConnection(username, password, certificateFilePath, brokerUrl string)
 	}
 
 	return conn, nil
+}
+
+func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName string, cluster windows.KafkaCluster) []int {
+	t := k.partitions[cluster.Title()]
+
+	t2 := t[topicName]
+	// slog.Error("cccccccccccccccccccccccccccccc", "c", t2)
+
+	return t2
 }
 
 // type Kafka interface {

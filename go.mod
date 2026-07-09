@@ -21,6 +21,8 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.44 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pressly/goose v2.7.0+incompatible // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/segmentio/kafka-go v0.4.50 // indirect
