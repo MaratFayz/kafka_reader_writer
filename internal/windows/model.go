@@ -147,18 +147,10 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 }
 
 func (m *Model) Init() tea.Cmd {
-	//TODO add query to database
-	// newItem := components.NewItem("sfa", "172.16.15.171:9093")
-	// insCmd := kcl.InsertItem(0, newItem)
-	// return insCmd
 	return nil
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// var cmds []tea.Cmd
-
-	// slog.Info("Active pane", "pane", m.ActivePane)
-
 	_, cmd4 := m.kafkaReadWriteTabs.Update(msg, m)
 	_, cmd3 := m.kafkaPartitionList.Update(msg, m)
 	_, cmd2 := m.kafkaTopicList.Update(msg, m)

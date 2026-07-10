@@ -47,6 +47,10 @@ func (m *KafkaSendMessageTableComponent) View() string {
 	return baseStyle.Render(m.table.View()) + "\n  " + m.table.HelpView() + "\n"
 }
 
+func (m *KafkaSendMessageTableComponent) GetActiveRow() []string {
+	return m.table.SelectedRow()
+}
+
 func CreateKafkaSendMessageTable(m *windows.Model) *KafkaSendMessageTableComponent {
 	columns := []table.Column{
 		{Title: "Rank", Width: 4},

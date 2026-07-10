@@ -230,7 +230,9 @@ func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTa
 
 		slog.Info("Init KafkaReadWriteTabsComponent", "KafkaReadWriteTabsComponent", d.kafkaReadWriteTabs)
 		d.kafkaReadWriteTabs = components.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
-			d.KafkaSendMessageTableComponent())
+			d.KafkaSendMessageTableComponent(),
+			// d.LocalStorage(), d.KafkaSenderReader()
+		)
 	}
 
 	return d.kafkaReadWriteTabs

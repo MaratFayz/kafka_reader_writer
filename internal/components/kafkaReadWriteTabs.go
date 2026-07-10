@@ -72,12 +72,14 @@ type KafkaSendMessageTextArea interface {
 	Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd)
 	View() string
 	Init() tea.Cmd
+	SetText(text string)
 }
 
 type KafkaSendMessageTable interface {
 	Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd)
 	View() string
 	Init() tea.Cmd
+	GetActiveRow() []string
 }
 
 func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
@@ -110,6 +112,9 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 					case "down":
 						k.activeComponent = min(k.activeComponent+1, 3)
 						return m, nil
+					case "ctrl+s":
+						k.kafkaSendMessageTextAreaComponent.SetText("")
+						return m, nil
 					default:
 						var ok bool
 						m2, cmd := k.kafkaSendMessageTextAreaComponent.Update(msg, m)
@@ -123,16 +128,22 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 						return m, tea.Batch(cmd)
 					}
 				case TABLE:
-					var ok bool
-					m2, cmd := k.kafkaSendMessageTableComponent.Update(msg, m)
+					switch keypress := msg.String(); keypress {
+					case "enter":
+						k.kafkaSendMessageTextAreaComponent.SetText(k.kafkaSendMessageTableComponent.GetActiveRow()[1])
+						k.activeComponent = TEXT_AREA
+					default:
+						var ok bool
+						m2, cmd := k.kafkaSendMessageTableComponent.Update(msg, m)
 
-					m, ok = m2.(*windows.Model)
-					if !ok {
-						// Handle the case where m2 is not *windows.Model
-						log.Fatal("m2 is not a *windows.Model")
+						m, ok = m2.(*windows.Model)
+						if !ok {
+							// Handle the case where m2 is not *windows.Model
+							log.Fatal("m2 is not a *windows.Model")
+						}
+
+						return m, tea.Batch(cmd)
 					}
-
-					return m, tea.Batch(cmd)
 				}
 			case READ:
 			}
@@ -154,6 +165,23 @@ func (k *KafkaReadWriteTabsComponent) Init() tea.Cmd {
 	cmd := k.kafkaSendMessageTextAreaComponent.Init()
 	return cmd
 }
+
+var (
+	// Активный стиль (выбранный, в фокусе)
+	ActiveStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#7D56F4")). // Фиолетовый фон
+			Foreground(lipgloss.Color("#FFFFFF")). // Белый текст
+			Padding(0, 2).                         // Отступы слева/справа
+			MarginRight(1).                        // Отступ между элементами
+			Bold(true)                             // Жирный шрифт
+
+	// Неактивный стиль (для сравнения)
+	InactiveStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#3C3C3C")).
+			Foreground(lipgloss.Color("#9B9B9B")).
+			Padding(0, 2).
+			MarginRight(1)
+)
 
 func (k *KafkaReadWriteTabsComponent) View() string {
 	if k.styles == nil {
@@ -195,7 +223,23 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 	var l string
 	switch k.activeTab {
 	case WRITE:
-		l = lipgloss.JoinVertical(lipgloss.Top, k.kafkaSendMessageTextAreaComponent.View(), k.kafkaSendMessageTableComponent.View())
+		taText := k.kafkaSendMessageTextAreaComponent.View()
+		tableText := k.kafkaSendMessageTableComponent.View()
+
+		switch k.activeComponent {
+		case TABS:
+			taText = InactiveStyle.Render(taText)
+			tableText = InactiveStyle.Render(tableText)
+
+		case TEXT_AREA:
+			taText = ActiveStyle.Render(taText)
+			tableText = InactiveStyle.Render(tableText)
+		case TABLE:
+			taText = InactiveStyle.Render(taText)
+			tableText = ActiveStyle.Render(tableText)
+		}
+
+		l = lipgloss.JoinVertical(lipgloss.Top, taText, tableText)
 	case READ:
 		l = lipgloss.JoinVertical(lipgloss.Top, "", "")
 	}

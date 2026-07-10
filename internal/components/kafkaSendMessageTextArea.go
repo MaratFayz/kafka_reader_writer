@@ -25,7 +25,8 @@ func (k *KafkaSendMessageTextAreaComponent) Update(msg tea.Msg, m *windows.Model
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
 		// Update styling now that we know the background color.
-		k.textarea.SetStyles(textarea.DefaultStyles(msg.IsDark()))
+		// k.textarea.SetStyles(textarea.DefaultStyles(msg.IsDark()))
+		k.textarea.SetStyles(textarea.DefaultStyles(false))
 
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -56,6 +57,10 @@ func (k *KafkaSendMessageTextAreaComponent) Update(msg tea.Msg, m *windows.Model
 
 func (k *KafkaSendMessageTextAreaComponent) headerView() string {
 	return "Tell me a story.\n"
+}
+
+func (k *KafkaSendMessageTextAreaComponent) SetText(text string) {
+	k.textarea.SetValue(text)
 }
 
 func (k *KafkaSendMessageTextAreaComponent) View() string {
