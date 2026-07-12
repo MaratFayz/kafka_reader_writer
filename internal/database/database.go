@@ -2,23 +2,23 @@ package database
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
-	"log"
 	"log/slog"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pressly/goose/v3"
 )
 
-type db struct {
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
+
+type Db struct {
 	conn *sql.DB
 	mu   sync.Mutex
-}
-
-type DB interface {
-	Close() error
-	GetKafkaClusters() []*kafkaClusterDb
 }
 
 type kafkaClusterDb struct {
@@ -54,7 +54,7 @@ func (kc *kafkaClusterDb) SaslMechanism() string {
 	return kc.saslMechanism
 }
 
-func CreateOrGetDb(databaseUrl string) (DB, error) {
+func CreateOrGetDb(databaseUrl string) (*Db, error) {
 	//TODO delete later
 	filePath := "database.db"
 	err := os.Remove(filePath)
@@ -69,39 +69,23 @@ func CreateOrGetDb(databaseUrl string) (DB, error) {
 		return nil, err
 	}
 
-	//TODO delete later
-	dirPath := "/Users/mfayz/Desktop/filesToSynchronize"
+	goose.SetBaseFS(embedMigrations)
 
-	// Get the file info structure for the directory
-	dirInfo, err := os.Stat(dirPath)
-	if err != nil {
-		log.Fatal(err)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		panic(err)
 	}
 
-	// .ModTime() returns the last modification time of the directory's metadata
-	modTime := dirInfo.ModTime()
-
-	sqlStmt := `
-	create table if not exists epoch_number (finished_epoch_number integer not null default 0);
-	INSERT into epoch_number(finished_epoch_number) values (0);
-	create table if not exists watched_dirs (id integer primary key autoincrement, path varchar(1024) not null, status varchar(7) NOT NULL, date_time_edited TEXT);
-	create table if not exists files_local (id integer primary key autoincrement, dir integer, name varchar(255), FOREIGN KEY(dir) REFERENCES watched_dirs(id));
-
-	INSERT INTO watched_dirs(path, status, date_time_edited) VALUES ("/Users/mfayz/Desktop/filesToSynchronize", 'ACTIVE', $1);
-	`
-	//status = ENUM('ACTIVE', 'STOPPED', 'DELETED')
-
-	_, err = conn.Exec(sqlStmt, modTime)
-	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return nil, err
+	if err := goose.Up(conn, "migrations"); err != nil {
+		panic(err)
 	}
 
-	return &db{conn: conn}, nil
+	fmt.Println("Миграции успешно применены!")
+
+	return &Db{conn: conn}, nil
 }
 
 // Close закрывает подключение к базе данных.
-func (d *db) Close() error {
+func (d *Db) Close() error {
 	err := d.conn.Close()
 	if err != nil {
 		slog.Error("подключение к базе данных было закрыто с ошибкой", "err", err.Error())
@@ -112,19 +96,42 @@ func (d *db) Close() error {
 	return nil
 }
 
-func (d *db) GetKafkaClusters() []*kafkaClusterDb {
-	clusters := make([]*kafkaClusterDb, 0, 1)
-	clusters = append(clusters, &kafkaClusterDb{title: "sfa", url: "172.16.15.171:9093", username: "SFA", password: "SFADEV123", trustStorePath: "./c/certificate.pem"})
-	return clusters
+type kafkaClusters struct {
+	clusters []*kafkaClusterDb
+}
 
-	// d.mu.Lock()
-	// defer d.mu.Unlock()
+func (k *kafkaClusters) Clusters() []*kafkaClusterDb {
+	return k.clusters
+}
 
-	// // row := d.conn.QueryRow("select count(*) AS count from file_local where parent_path = $1, file_name = $2", filePath, fileName)
-	// row := d.conn.QueryRow("select count(*) AS count from files_local fl join watched_local_dirs wd on wd.id = fl.dir where wd.path = $1 and fl.name = $2", filePath, fileName)
+func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
+	clusters := make([]*contracts.KafkaCluster, 0, 1)
+	// clusters = append(clusters, &contracts.KafkaCluster{Title: "sfa", Url: "172.16.15.171:9093", Username: "SFA", Password: "SFADEV123", TrustStorePath: "./c/certificate.pem"})
 
-	// var count int = 0
-	// err := row.Scan(&count)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	rows, err := d.conn.Query("select title, url,trust_store_path,username,password from clusters")
+
+	if err != nil {
+		slog.Error("Ошибка при получении кластеров из БД", "err", err)
+	}
+
+	for rows.Next() {
+		var title string
+		var url string
+		var trust_store_path string
+		var username string
+		var password string
+
+		err = rows.Scan(&title, &url, &trust_store_path, &username, &password)
+
+		if err != nil {
+			slog.Error("Ошибка при получении кластеров из БД 2", "err", err)
+		}
+
+		clusters = append(clusters, &contracts.KafkaCluster{Title: title, Url: url, TrustStorePath: trust_store_path, Username: username, Password: password})
+	}
 
 	// if err != nil {
 	// 	slog.Error("Ошибка при получении существования файла из БД", "err", err)
@@ -132,4 +139,6 @@ func (d *db) GetKafkaClusters() []*kafkaClusterDb {
 	// } else {
 	// 	return true, nil
 	// }
+
+	return clusters
 }

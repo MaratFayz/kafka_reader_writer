@@ -2,7 +2,7 @@ package components
 
 import (
 	"fmt"
-	"marat/fayz/kafka_reader_writer/internal/localstorage"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
 	"charm.land/bubbles/v2/key"
@@ -228,21 +228,35 @@ func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
 	return &KafkaClusterList{&list, delegateKeys, listKeys, &styles}
 }
 
-func CreateKafkaClustersListAddValues(ls localstorage.LocalStorage, model *windows.Model) *KafkaClusterList {
+type LocalStorage interface {
+	GetKafkaClusters() []*contracts.KafkaCluster
+}
+
+// type KafkaCluster interface {
+// 	Title() string
+// 	Url() string
+// 	TrustStorePath() string
+// 	TrustStorePassword() string
+// 	Username() string
+// 	Password() string
+// 	SaslMechanism() string
+// }
+
+func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *KafkaClusterList {
 	kafkaClusterList := CreateKafkaClustersList(model)
 
 	kc := ls.GetKafkaClusters()
 
-	var clusterList []windows.KafkaCluster = make([]windows.KafkaCluster, len(kc))
-	clusterMap := make(map[string]windows.KafkaCluster, len(kc))
+	clusterList := make([]*contracts.KafkaCluster, len(kc))
+	clusterMap := make(map[string]*contracts.KafkaCluster, len(kc))
 	for i, cluster := range kc {
 		clusterList[i] = cluster // Каждый элемент преобразуется отдельно
-		clusterMap[cluster.Title()] = cluster
+		clusterMap[cluster.Title] = cluster
 	}
 	model.KafkaClusters = clusterMap
 	// fmt.Println(clusterList)
 	for i, v := range clusterList {
-		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title(), v.Url()))
+		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
 	}
 
 	return kafkaClusterList

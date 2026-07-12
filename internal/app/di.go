@@ -15,18 +15,19 @@ import (
 )
 
 type diContainer struct {
-	appConfig                      *config.Config
-	db                             database.DB
-	localStorage                   localstorage.LocalStorage
-	model                          *windows.Model
-	fullModel                      *windows.Model
-	kafkaClusterList               *components.KafkaClusterList
-	kafkaTopicList                 *components.KafkaTopicList
-	kafkaConnector                 *connection.KafkaConnectorProvider
-	kafkaPartitionList             *components.KafkaPartitionList
-	kafkaReadWriteTabs             *components.KafkaReadWriteTabsComponent
-	kafkaSendMessageTextArea       *components.KafkaSendMessageTextAreaComponent
-	kafkaSendMessageTableComponent *components.KafkaSendMessageTableComponent
+	appConfig                       *config.Config
+	db                              *database.Db
+	localStorage                    *localstorage.LocalStorage
+	model                           *windows.Model
+	fullModel                       *windows.Model
+	kafkaClusterList                *components.KafkaClusterList
+	kafkaTopicList                  *components.KafkaTopicList
+	kafkaConnector                  *connection.KafkaConnectorProvider
+	kafkaPartitionList              *components.KafkaPartitionList
+	kafkaReadWriteTabs              *components.KafkaReadWriteTabsComponent
+	kafkaSendMessageTextArea        *components.KafkaSendMessageTextAreaComponent
+	kafkaSendMessageTableComponent  *components.KafkaSendMessageTableComponent
+	kafkaReadMessagesTableComponent *components.KafkaReadMessagesTableComponent
 
 	muAppConfig                sync.Mutex
 	muDb                       sync.Mutex
@@ -39,6 +40,7 @@ type diContainer struct {
 	muKafkaPartitionList       sync.Mutex
 	muKafkaReadWriteTabs       sync.Mutex
 	muKafkaSendMessageTextArea sync.Mutex
+	muKafkaReadMessagesTable   sync.Mutex
 }
 
 // newDIContainer создаёт новый пустой контейнер.
@@ -61,7 +63,7 @@ func (d *diContainer) AppConfig() *config.Config {
 	return d.appConfig
 }
 
-func (d *diContainer) DB() database.DB {
+func (d *diContainer) DB() *database.Db {
 	if d.db == nil {
 		d.muDb.Lock()
 		defer d.muDb.Unlock()
@@ -87,7 +89,7 @@ func (d *diContainer) DB() database.DB {
 	return d.db
 }
 
-func (d *diContainer) LocalStorage() localstorage.LocalStorage {
+func (d *diContainer) LocalStorage() *localstorage.LocalStorage {
 	if d.localStorage == nil {
 		d.muLocalStorage.Lock()
 		defer d.muLocalStorage.Unlock()
@@ -230,9 +232,7 @@ func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTa
 
 		slog.Info("Init KafkaReadWriteTabsComponent", "KafkaReadWriteTabsComponent", d.kafkaReadWriteTabs)
 		d.kafkaReadWriteTabs = components.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
-			d.KafkaSendMessageTableComponent(),
-			// d.LocalStorage(), d.KafkaSenderReader()
-		)
+			d.KafkaSendMessageTableComponent(), d.KafkaSenderReader(), d.LocalStorage(), d.KafkaReadMessagesTableComponent())
 	}
 
 	return d.kafkaReadWriteTabs
@@ -268,4 +268,36 @@ func (d *diContainer) KafkaSendMessageTableComponent() *components.KafkaSendMess
 	}
 
 	return d.kafkaSendMessageTableComponent
+}
+
+func (d *diContainer) KafkaReadMessagesTableComponent() *components.KafkaReadMessagesTableComponent {
+	if d.kafkaReadMessagesTableComponent == nil {
+		d.muKafkaReadMessagesTable.Lock()
+		defer d.muKafkaReadMessagesTable.Unlock()
+
+		if d.kafkaReadMessagesTableComponent != nil {
+			return d.kafkaReadMessagesTableComponent
+		}
+
+		slog.Info("Init KafkaReadMessagesTableComponent", "KafkaReadMessagesTableComponent", d.kafkaReadMessagesTableComponent)
+		d.kafkaReadMessagesTableComponent = components.CreateKafkaReadMessagesTable(d.Model())
+	}
+
+	return d.kafkaReadMessagesTableComponent
+}
+
+func (d *diContainer) KafkaSenderReader() *connection.KafkaConnectorProvider {
+	if d.kafkaConnector == nil {
+		d.muKafkaConnector.Lock()
+		defer d.muKafkaConnector.Unlock()
+
+		if d.kafkaConnector != nil {
+			return d.kafkaConnector
+		}
+
+		slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
+		d.kafkaConnector = connection.NewKafkaConnector()
+	}
+
+	return d.kafkaConnector
 }

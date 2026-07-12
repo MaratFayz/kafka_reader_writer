@@ -2,7 +2,7 @@ package windows
 
 import (
 	"log/slog"
-	"marat/fayz/kafka_reader_writer/internal/localstorage"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -10,7 +10,7 @@ import (
 )
 
 type Model struct {
-	KafkaClusters        map[string]KafkaCluster
+	KafkaClusters        map[string]*contracts.KafkaCluster
 	SelectedKafkaCluster string
 
 	kafkaTopics        map[string][]string
@@ -18,7 +18,7 @@ type Model struct {
 	IsLoadTopics       bool
 
 	kafkaPartitions        map[string]map[string][]int
-	selectedKafkaPartition string
+	SelectedKafkaPartition string
 	IsLoadPartitions       bool
 	ActivePane             int //0-cluster,1-topic,2-partitions,3-tabs
 
@@ -85,7 +85,7 @@ func (m *Model) SetActivePaneAfterKafkaPartitionChosen(activePane int) {
 }
 
 func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
-	m.selectedKafkaPartition = selectedKafkaPartition
+	m.SelectedKafkaPartition = selectedKafkaPartition
 }
 
 func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int) {
@@ -110,23 +110,24 @@ func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName st
 	slog.Info("A", "a", m.ActivePane)
 }
 
-type KafkaCluster interface {
-	Title() string
-	Url() string
-	TrustStorePath() string
-	TrustStorePassword() string
-	Username() string
-	Password() string
-	SaslMechanism() string
+// type KafkaCluster interface {
+// 	Title() string
+// 	Url() string
+// 	TrustStorePath() string
+// 	TrustStorePassword() string
+// 	Username() string
+// 	Password() string
+// 	SaslMechanism() string
+// }
+
+type LocalStorage interface {
+	GetKafkaClusters() []*contracts.KafkaCluster
 }
 
-func InitialModel(ls localstorage.LocalStorage) *Model {
-	// ta := components.CreateTextArea()
-
+func InitialModel(ls LocalStorage) *Model {
 	model := &Model{
-		// sendMessageTextArea: ta,
 		ActivePane:       0,
-		KafkaClusters:    make(map[string]KafkaCluster),
+		KafkaClusters:    make(map[string]*contracts.KafkaCluster),
 		kafkaTopics:      make(map[string][]string),
 		kafkaPartitions:  make(map[string]map[string][]int),
 		IsLoadTopics:     false,

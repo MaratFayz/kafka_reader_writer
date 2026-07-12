@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"log/slog"
-	"marat/fayz/kafka_reader_writer/internal/windows"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
 	"sort"
 	"time"
@@ -28,8 +28,8 @@ func NewKafkaConnector() *KafkaConnectorProvider {
 	}
 }
 
-func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.KafkaCluster) ([]string, error) {
-	if v, ok := k.topics[clusterName.Title()]; ok == true {
+func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error) {
+	if v, ok := k.topics[clusterName.Title]; ok == true {
 		slog.Error("in map have topics", "v", v)
 
 		return v, nil
@@ -38,7 +38,7 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.Kafk
 	// slog.Error("in map NOT topics")
 
 	var conn *kafka.Conn
-	if v, ok := k.connections[clusterName.Title()]; ok == true {
+	if v, ok := k.connections[clusterName.Title]; ok == true {
 		slog.Error("in map have connection", "v", v)
 
 		conn = v
@@ -46,7 +46,7 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.Kafk
 
 	// slog.Error("in map NOT connections")
 
-	conn, err := createConnection(clusterName.Username(), clusterName.Password(), clusterName.TrustStorePath(), clusterName.Url())
+	conn, err := createConnection(clusterName.Username, clusterName.Password, clusterName.TrustStorePath, clusterName.Url)
 	if err != nil {
 		slog.Error("Connection to Kafka error")
 	}
@@ -81,12 +81,12 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName windows.Kafk
 
 	sort.Strings(topicsList)
 
-	k.topics[clusterName.Title()] = topicsList
-	if _, ok := k.partitions[clusterName.Title()]; ok != true {
-		k.partitions[clusterName.Title()] = make(map[string][]int)
+	k.topics[clusterName.Title] = topicsList
+	if _, ok := k.partitions[clusterName.Title]; ok != true {
+		k.partitions[clusterName.Title] = make(map[string][]int)
 	}
 
-	k.partitions[clusterName.Title()] = partitionMap
+	k.partitions[clusterName.Title] = partitionMap
 
 	// slog.Error("in kafka", "v", k)
 
@@ -133,8 +133,8 @@ func createConnection(username, password, certificateFilePath, brokerUrl string)
 	return conn, nil
 }
 
-func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName string, cluster windows.KafkaCluster) []int {
-	t := k.partitions[cluster.Title()]
+func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) []int {
+	t := k.partitions[cluster.Title]
 
 	t2 := t[topicName]
 	// slog.Error("cccccccccccccccccccccccccccccc", "c", t2)
@@ -181,3 +181,18 @@ func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName st
 // 		log.Fatal("failed to close writer:", err)
 // 	}
 // }
+
+func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error {
+	return nil
+}
+
+func (k *KafkaConnectorProvider) Close() error {
+	var err error
+	for _, c := range k.connections {
+		err = c.Close()
+	}
+
+	if err != nil {
+
+	}
+}

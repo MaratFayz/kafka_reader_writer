@@ -63,6 +63,10 @@ func (k *KafkaSendMessageTextAreaComponent) SetText(text string) {
 	k.textarea.SetValue(text)
 }
 
+func (k *KafkaSendMessageTextAreaComponent) GetText() string {
+	return k.textarea.Value()
+}
+
 func (k *KafkaSendMessageTextAreaComponent) View() string {
 	const (
 		footer = "\n(ctrl+c to quit)\n"

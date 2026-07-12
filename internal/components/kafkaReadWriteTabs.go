@@ -2,6 +2,7 @@ package components
 
 import (
 	"log"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strings"
 
@@ -66,6 +67,17 @@ type KafkaReadWriteTabsComponent struct {
 	model                             *windows.Model
 	kafkaSendMessageTextAreaComponent KafkaSendMessageTextArea
 	kafkaSendMessageTableComponent    KafkaSendMessageTable
+	kafkaSender                       kafkaConsumerProducer
+	historySentMessages               historySentMessages
+	kafkaReadMessageTable             KafkaReadMessageTable
+}
+
+type kafkaConsumerProducer interface {
+	Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error
+}
+
+type historySentMessages interface {
+	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
 }
 
 type KafkaSendMessageTextArea interface {
@@ -73,6 +85,7 @@ type KafkaSendMessageTextArea interface {
 	View() string
 	Init() tea.Cmd
 	SetText(text string)
+	GetText() string
 }
 
 type KafkaSendMessageTable interface {
@@ -80,6 +93,27 @@ type KafkaSendMessageTable interface {
 	View() string
 	Init() tea.Cmd
 	GetActiveRow() []string
+}
+
+type KafkaReadMessageTable interface {
+	Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd)
+	View() string
+	Init() tea.Cmd
+	GetActiveRow() []string
+}
+
+type errorWhenSendMessageToKafka struct {
+	error error
+}
+
+type successWhenSendMessageToKafka struct {
+}
+
+type errorWhenSaveMessageToHistory struct {
+	error error
+}
+
+type successWhenSaveMessageToHistory struct {
 }
 
 func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
@@ -113,8 +147,33 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 						k.activeComponent = min(k.activeComponent+1, 3)
 						return m, nil
 					case "ctrl+s":
+						textToSend := k.kafkaSendMessageTextAreaComponent.GetText()
 						k.kafkaSendMessageTextAreaComponent.SetText("")
-						return m, nil
+						cluster := m.KafkaClusters[m.SelectedKafkaCluster]
+						topic := m.SelectedKafkaTopic
+						partition := m.SelectedKafkaPartition
+
+						sendMessageCmd := func() tea.Msg {
+							err := k.kafkaSender.Send(cluster, topic, partition, textToSend)
+
+							if err != nil {
+								return errorWhenSendMessageToKafka{error: err}
+							}
+
+							return successWhenSendMessageToKafka{}
+						}
+
+						saveMessageToHistoryCmd := func() tea.Msg {
+							err := k.historySentMessages.SaveMessage(cluster, topic, textToSend)
+
+							if err != nil {
+								return errorWhenSaveMessageToHistory{error: err}
+							}
+
+							return successWhenSaveMessageToHistory{}
+						}
+
+						return m, tea.Batch(sendMessageCmd, saveMessageToHistoryCmd)
 					default:
 						var ok bool
 						m2, cmd := k.kafkaSendMessageTextAreaComponent.Update(msg, m)
@@ -241,7 +300,7 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 
 		l = lipgloss.JoinVertical(lipgloss.Top, taText, tableText)
 	case READ:
-		l = lipgloss.JoinVertical(lipgloss.Top, "", "")
+		l = lipgloss.JoinVertical(lipgloss.Top, k.kafkaReadMessageTable.View(), "")
 	}
 
 	doc.WriteString(s.window.Width((lipgloss.Width(row) * 3)).Render(l))
@@ -249,10 +308,11 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 	return s.doc.Render(doc.String())
 }
 
-func CreateKafkaReadWriteTabsComponent(m *windows.Model, ks KafkaSendMessageTextArea, kt KafkaSendMessageTable) *KafkaReadWriteTabsComponent {
+func CreateKafkaReadWriteTabsComponent(m *windows.Model, ks KafkaSendMessageTextArea, kt KafkaSendMessageTable,
+	kafkaSender kafkaConsumerProducer, historySentMessages historySentMessages, kr KafkaReadMessageTable) *KafkaReadWriteTabsComponent {
 	tabs := []string{"Read", "Write"}
 	tabContent := []string{"Lip Gloss Tab", "Blush Tab", "Eye Shadow Tab", "Mascara Tab", "Foundation Tab"}
 	k := &KafkaReadWriteTabsComponent{Tabs: tabs, TabContent: tabContent, styles: newStyles(true), model: m, kafkaSendMessageTextAreaComponent: ks,
-		kafkaSendMessageTableComponent: kt}
+		kafkaSendMessageTableComponent: kt, kafkaSender: kafkaSender, historySentMessages: historySentMessages, kafkaReadMessageTable: kr}
 	return k
 }

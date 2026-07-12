@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -30,7 +31,7 @@ func (k *KafkaPartitionList) GetStyles() windows.StylesKafkaCluster {
 }
 
 type KafkaPartitionsProvider interface {
-	GetPartitionsByClusterNameAndTopic(topicName string, cluster windows.KafkaCluster) []int
+	GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) []int
 }
 
 type ModelChangerKafkaPartition interface {
@@ -346,11 +347,11 @@ type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
-func (ktl *KafkaPartitionList) loadPartitions(cluster windows.KafkaCluster, topicName string) tea.Cmd {
+func (ktl *KafkaPartitionList) loadPartitions(cluster *contracts.KafkaCluster, topicName string) tea.Cmd {
 	return func() tea.Msg {
 		// print(cluster)
 		partitions := ktl.kafkaPartitionsProvider.GetPartitionsByClusterNameAndTopic(topicName, cluster)
-		ktl.model.SetPartitionsForClusterAndTopic(cluster.Title(), topicName, partitions)
+		ktl.model.SetPartitionsForClusterAndTopic(cluster.Title, topicName, partitions)
 		// slog.Error("v", "v", partitions)
 
 		return kafkaPartitionsMsg(partitions)

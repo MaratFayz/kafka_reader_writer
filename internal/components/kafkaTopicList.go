@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"log/slog"
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -37,7 +38,7 @@ type ModelChangerKafkaTopic interface {
 }
 
 type KafkaTopicsProvider interface {
-	GetTopicsByClusterName(clusterName windows.KafkaCluster) ([]string, error)
+	GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error)
 }
 
 type ufKafkaTopic struct {
@@ -347,14 +348,14 @@ type kafkaTopicErrMsg struct{ err error }
 
 func (e kafkaTopicErrMsg) Error() string { return e.err.Error() }
 
-func (ktl *KafkaTopicList) loadTopics(cluster windows.KafkaCluster) tea.Cmd {
+func (ktl *KafkaTopicList) loadTopics(cluster *contracts.KafkaCluster) tea.Cmd {
 	return func() tea.Msg {
 		// slog.Error("asd", "cluster", cluster)
 		topicNames, err := ktl.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
 		if err != nil {
 			slog.Error("Error during getting topic names", "topicNames", err)
 		}
-		ktl.model.SetTopicsForCluster(cluster.Title(), topicNames)
+		ktl.model.SetTopicsForCluster(cluster.Title, topicNames)
 
 		return kafkaTopicsMsg(topicNames)
 	}
