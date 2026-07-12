@@ -28,8 +28,14 @@ func NewKafkaConnector() *KafkaConnectorProvider {
 	}
 }
 
-func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error) {
-	if v, ok := k.topics[clusterName.Title]; ok == true {
+func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.KafkaCluster) ([]string, error) {
+	// defer func() {
+	// 	if recover() != nil {
+	// 		slog.Error("EEEEEEEEEEEEE")
+	// 	}
+	// }()
+
+	if v, ok := k.topics[cluster.Title]; ok == true {
 		slog.Error("in map have topics", "v", v)
 
 		return v, nil
@@ -38,7 +44,7 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName *contracts.K
 	// slog.Error("in map NOT topics")
 
 	var conn *kafka.Conn
-	if v, ok := k.connections[clusterName.Title]; ok == true {
+	if v, ok := k.connections[cluster.Title]; ok == true {
 		slog.Error("in map have connection", "v", v)
 
 		conn = v
@@ -46,14 +52,16 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName *contracts.K
 
 	// slog.Error("in map NOT connections")
 
-	conn, err := createConnection(clusterName.Username, clusterName.Password, clusterName.TrustStorePath, clusterName.Url)
+	conn, err := createConnection(cluster.Username, cluster.Password, cluster.TrustStorePath, cluster.Url)
 	if err != nil {
 		slog.Error("Connection to Kafka error")
+		return nil, err
 	}
 
 	partitions, err := conn.ReadPartitions()
 	if err != nil {
 		slog.Error("Partitions in Kafka error")
+		return nil, err
 	}
 
 	topics := map[string]struct{}{}
@@ -81,12 +89,12 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(clusterName *contracts.K
 
 	sort.Strings(topicsList)
 
-	k.topics[clusterName.Title] = topicsList
-	if _, ok := k.partitions[clusterName.Title]; ok != true {
-		k.partitions[clusterName.Title] = make(map[string][]int)
+	k.topics[cluster.Title] = topicsList
+	if _, ok := k.partitions[cluster.Title]; ok != true {
+		k.partitions[cluster.Title] = make(map[string][]int)
 	}
 
-	k.partitions[clusterName.Title] = partitionMap
+	k.partitions[cluster.Title] = partitionMap
 
 	// slog.Error("in kafka", "v", k)
 
@@ -186,13 +194,13 @@ func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafk
 	return nil
 }
 
-func (k *KafkaConnectorProvider) Close() error {
-	var err error
-	for _, c := range k.connections {
-		err = c.Close()
-	}
+// func (k *KafkaConnectorProvider) Close() error {
+// 	var err error
+// 	for _, c := range k.connections {
+// 		err = c.Close()
+// 	}
 
-	if err != nil {
+// 	if err != nil {
 
-	}
-}
+// 	}
+// }

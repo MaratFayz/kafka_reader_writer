@@ -78,6 +78,7 @@ type kafkaConsumerProducer interface {
 
 type historySentMessages interface {
 	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
+	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
 }
 
 type KafkaSendMessageTextArea interface {
@@ -93,6 +94,7 @@ type KafkaSendMessageTable interface {
 	View() string
 	Init() tea.Cmd
 	GetActiveRow() []string
+	SetValues(messages []*contracts.SentMessagesRow) error
 }
 
 type KafkaReadMessageTable interface {
@@ -116,10 +118,54 @@ type errorWhenSaveMessageToHistory struct {
 type successWhenSaveMessageToHistory struct {
 }
 
+type errorWhenGetMessagesFromHistory struct {
+	error error
+}
+
+type successWhenGetMessagesFromHistory struct {
+	messages []*contracts.SentMessagesRow
+}
+
+type errorWhenSetMessagesHistoryMessagesTableCmd struct {
+	error error
+}
+
+type successWhenSetMessagesHistoryMessagesTableCmd struct {
+}
+
 func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	//добавить проверку, какая вкладка видима и направлять туда события
 	if m.ActivePane == 3 {
 		switch msg := msg.(type) {
+		case successWhenSaveMessageToHistory:
+			getMessagesFromHistoryCmd := func() tea.Msg {
+				cluster := m.KafkaClusters[m.SelectedKafkaCluster]
+				topic := m.SelectedKafkaTopic
+
+				messages, err := k.historySentMessages.GetMessages(cluster, topic)
+
+				if err != nil {
+					return errorWhenGetMessagesFromHistory{error: err}
+				}
+
+				return successWhenGetMessagesFromHistory{messages: messages}
+			}
+
+			return m, tea.Batch(getMessagesFromHistoryCmd)
+
+		case successWhenGetMessagesFromHistory:
+			setMessagesHistoryMessagesTableCmd := func() tea.Msg {
+				err := k.kafkaSendMessageTableComponent.SetValues(msg.messages)
+
+				if err != nil {
+					return errorWhenSetMessagesHistoryMessagesTableCmd{error: err}
+				}
+
+				return successWhenSetMessagesHistoryMessagesTableCmd{}
+			}
+
+			return m, tea.Batch(setMessagesHistoryMessagesTableCmd)
+
 		case tea.KeyPressMsg:
 			switch k.activeComponent {
 			case TABS:
@@ -148,7 +194,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 						return m, nil
 					case "ctrl+s":
 						textToSend := k.kafkaSendMessageTextAreaComponent.GetText()
-						k.kafkaSendMessageTextAreaComponent.SetText("")
+						// k.kafkaSendMessageTextAreaComponent.SetText("")
 						cluster := m.KafkaClusters[m.SelectedKafkaCluster]
 						topic := m.SelectedKafkaTopic
 						partition := m.SelectedKafkaPartition

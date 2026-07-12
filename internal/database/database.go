@@ -8,6 +8,7 @@ import (
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -141,4 +142,37 @@ func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
 	// }
 
 	return clusters
+}
+
+func (d *Db) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res, err := d.conn.Exec("insert into sent_messages_history(cluster_id, body, status, date_time_sent)"+
+		"values ((select id from clusters c where c.url = $1 and c.username = $2 and c.title = $3), $4, 'OK', $5",
+		kafkaCluster.Url, kafkaCluster.Username, kafkaCluster.Title, messageToSave, time.Now())
+
+	if err != nil {
+		slog.Error("Ошибка при добавлении строки истории отправленных сообщений в БД", "err", err)
+		return err
+	}
+
+	r, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Ошибка при добавлении строки истории отправленных сообщений в БД 2", "err", err)
+		return err
+	}
+
+	if r == 0 {
+		slog.Error("Ошибка при добавлении строки истории отправленных сообщений в БД 3", "r", r)
+		return err
+	}
+
+	return nil
+}
+func (d *Db) GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return nil, nil
+
 }

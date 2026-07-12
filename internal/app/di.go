@@ -99,7 +99,7 @@ func (d *diContainer) LocalStorage() *localstorage.LocalStorage {
 		}
 
 		slog.Info("Init LocalStorage", "LocalStorage", d.model)
-		ls := localstorage.NewLocalStorage(d.DB())
+		ls := localstorage.NewLocalStorage(d.DB(), d.DB())
 		d.localStorage = ls
 	}
 
@@ -174,6 +174,11 @@ func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
 }
 
 func (d *diContainer) KafkaTopicsProvider() components.KafkaTopicsProvider {
+	slog.Info("Init KafkaTopicsProvider", "KafkaTopicsProvider", d.kafkaConnector)
+	return d.createKafkaConnector()
+}
+
+func (d *diContainer) createKafkaConnector() *connection.KafkaConnectorProvider {
 	if d.kafkaConnector == nil {
 		d.muKafkaConnector.Lock()
 		defer d.muKafkaConnector.Unlock()
@@ -182,27 +187,19 @@ func (d *diContainer) KafkaTopicsProvider() components.KafkaTopicsProvider {
 			return d.kafkaConnector
 		}
 
-		slog.Info("Init KafkaTopicsProvider", "KafkaTopicsProvider", d.kafkaConnector)
+		// closer.Add("кафка", func(_ context.Context) error {
+		// 	return d.kafkaConnector.Close()
+		// })
+
 		d.kafkaConnector = connection.NewKafkaConnector()
 	}
 
 	return d.kafkaConnector
 }
 
-func (d *diContainer) KafkaPartitionsProvider() components.KafkaPartitionsProvider {
-	if d.kafkaConnector == nil {
-		d.muKafkaConnector.Lock()
-		defer d.muKafkaConnector.Unlock()
-
-		if d.kafkaConnector != nil {
-			return d.kafkaConnector
-		}
-
-		slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
-		d.kafkaConnector = connection.NewKafkaConnector()
-	}
-
-	return d.kafkaConnector
+func (d *diContainer) KafkaPartitionsProvider() *connection.KafkaConnectorProvider {
+	slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
+	return d.createKafkaConnector()
 }
 
 func (d *diContainer) KafkaPartitionListComponent() *components.KafkaPartitionList {
@@ -287,17 +284,6 @@ func (d *diContainer) KafkaReadMessagesTableComponent() *components.KafkaReadMes
 }
 
 func (d *diContainer) KafkaSenderReader() *connection.KafkaConnectorProvider {
-	if d.kafkaConnector == nil {
-		d.muKafkaConnector.Lock()
-		defer d.muKafkaConnector.Unlock()
-
-		if d.kafkaConnector != nil {
-			return d.kafkaConnector
-		}
-
-		slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
-		d.kafkaConnector = connection.NewKafkaConnector()
-	}
-
-	return d.kafkaConnector
+	slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
+	return d.createKafkaConnector()
 }
