@@ -327,7 +327,13 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 	batch := conn.ReadBatch(200*50, 1000*50)
 	res := make([]*contracts.ReadMessagesRow, 0)
 
+	if err := batch.Err(); err != nil {
+		slog.Error("Batch is failed", "err", err)
+		return nil, err
+	}
+
 	for range 50 {
+
 		message, err := batch.ReadMessage()
 
 		if err != nil {
@@ -336,8 +342,10 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 
 		m := string(message.Value)
 
-		res = append(res, &contracts.ReadMessagesRow{Row: []string{message.Time.GoString(), string(message.Offset), m}})
+		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), m}})
 	}
+
+	slog.Error("Mes read kafka------------------------>", "mes", res)
 
 	return res, nil
 }
