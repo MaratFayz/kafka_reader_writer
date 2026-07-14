@@ -1,13 +1,16 @@
 package connection
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
+	"log"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -58,6 +61,8 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.Kafka
 		return nil, err
 	}
 
+	k.connections[cluster.Title] = conn
+
 	partitions, err := conn.ReadPartitions()
 	if err != nil {
 		slog.Error("Partitions in Kafka error")
@@ -101,7 +106,7 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.Kafka
 	return topicsList, nil
 }
 
-func createConnection(username, password, certificateFilePath, brokerUrl string) (*kafka.Conn, error) {
+func createDialer(username, password, certificateFilePath, brokerUrl string) *kafka.Dialer {
 	mechanism := plain.Mechanism{
 		Username: username,
 		Password: password,
@@ -122,6 +127,7 @@ func createConnection(username, password, certificateFilePath, brokerUrl string)
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 		// ClientCAs: ,
+		// InsecureSkipVerify: false, // Всегда false в production
 	}
 
 	dialer := &kafka.Dialer{
@@ -130,6 +136,12 @@ func createConnection(username, password, certificateFilePath, brokerUrl string)
 		SASLMechanism: mechanism,
 		TLS:           tlsConfig,
 	}
+
+	return dialer
+}
+
+func createConnection(username, password, certificateFilePath, brokerUrl string) (*kafka.Conn, error) {
+	dialer := createDialer(username, password, certificateFilePath, brokerUrl)
 
 	conn, err := dialer.Dial("tcp", brokerUrl)
 
@@ -145,7 +157,7 @@ func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName st
 	t := k.partitions[cluster.Title]
 
 	t2 := t[topicName]
-	// slog.Error("cccccccccccccccccccccccccccccc", "c", t2)
+	slog.Error("cccccccccccccccccccccccccccccc", "c", t2)
 
 	return t2
 }
@@ -191,6 +203,93 @@ func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName st
 // }
 
 func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error {
+	// conn := k.connections[kafkaCluster.Title]
+	// conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	// // conn.
+	// _, err := conn.WriteMessages(
+	// 	kafka.Message{Topic: kafkaTopic, Value: []byte(textToSend)},
+	// 	// kafka.Message{Value: []byte("two!")},
+	// 	// kafka.Message{Value: []byte("three!")},
+	// )
+
+	// if err != nil {
+	// 	log.Fatal("failed to write messages:", err)
+	// }
+
+	// return nil
+
+	// slog.Error("NULL", "cluster", kafkaCluster)
+	// b, err := conn.Brokers()
+
+	// brokers := make([]string, 0, len(b))
+
+	// for _, br := range b {
+	// 	brokers = append(brokers, br.Host)
+	// }
+
+	// if err != nil {
+	// 	log.Fatal("failed to write messages:", err)
+	// }
+
+	// writer := kafka.NewWriter(kafka.WriterConfig{
+	// 	// Addr:     kafka.TCP(kafkaCluster.Url),
+	// 	// Username: kafkaCluster.Username,
+	// 	// Password: kafkaCluster.Password,
+	// 	// Balancer: &kafka.LeastBytes{},
+	// 	Dialer: createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url),
+	// 	Topic:  kafkaTopic,
+	// 	// Brokers: []string{kafkaCluster.Url},
+	// 	Brokers: brokers,
+	// })
+	dialer := createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url)
+	// writer := kafka.Writer{
+	// 	Addr: kafka.TCP(kafkaCluster.Url),
+	// 	// Dialer: createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url),
+	// 	Topic: kafkaTopic,
+	// 	// Brokers: []string{kafkaCluster.Url},
+	// 	// Brokers: brokers,
+	// 	Transport: &kafka.Transport{
+	// 		Dial: dialer.DialFunc, // Используем диалер для транспорта
+	// 		TLS:  dialer.TLS,
+	// 	},
+	// 	Logger: kafka.LoggerFunc(log.Printf),
+	// }
+
+	// defer writer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+	// err := writer.WriteMessages(ctx, kafka.Message{Value: []byte(textToSend)}, kafka.Message{Value: []byte(textToSend)})
+
+	// if err != nil {
+	// 	log.Fatalf("Error when write to kafka: %s %s % X", err, textToSend, []byte(textToSend))
+	// 	return err
+	// }
+
+	i, err := strconv.Atoi(kafkaPartition)
+
+	if err != nil {
+		slog.Error("Connection is not initiated", "err", err)
+		return err
+	}
+
+	conn, err := dialer.DialLeader(ctx, "tcp", kafkaCluster.Url, kafkaTopic, i)
+
+	if err != nil {
+		slog.Error("Connection is not initiated", "err", err)
+		return err
+	}
+
+	_, err = conn.WriteMessages(
+		kafka.Message{Topic: kafkaTopic, Value: []byte(textToSend)},
+		// kafka.Message{Value: []byte("two!")},
+		// kafka.Message{Value: []byte("three!")},
+	)
+
+	if err != nil {
+		log.Fatal("failed to write messages:", err)
+	}
+
 	return nil
 }
 
@@ -204,3 +303,41 @@ func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafk
 
 // 	}
 // }
+
+func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, numberOfReadMessages int) ([]*contracts.ReadMessagesRow, error) {
+	dialer := createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	i, err := strconv.Atoi(kafkaPartition)
+
+	if err != nil {
+		slog.Error("Connection is not initiated", "err", err)
+		return nil, err
+	}
+
+	conn, err := dialer.DialLeader(ctx, "tcp", kafkaCluster.Url, kafkaTopic, i)
+
+	if err != nil {
+		slog.Error("Connection is not initiated", "err", err)
+		return nil, err
+	}
+
+	batch := conn.ReadBatch(200*50, 1000*50)
+	res := make([]*contracts.ReadMessagesRow, 0)
+
+	for range 50 {
+		message, err := batch.ReadMessage()
+
+		if err != nil {
+			log.Fatal("failed to read message:", err)
+		}
+
+		m := string(message.Value)
+
+		res = append(res, &contracts.ReadMessagesRow{Row: []string{message.Time.GoString(), string(message.Offset), m}})
+	}
+
+	return res, nil
+}

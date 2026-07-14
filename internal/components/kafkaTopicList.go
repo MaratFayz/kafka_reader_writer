@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
-	"strconv"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -57,7 +56,9 @@ func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd 
 			u.model.SetActivePaneAfterKafkaTopicChosen(2)
 
 			if i, ok := m.SelectedItem().(ItemKafkaTopic); ok {
-				title = i.Description()
+				// title = i.Description()
+				title = i.Title()
+
 				u.model.SetChosenKafkaTopic(title)
 			} else {
 				return nil
@@ -246,13 +247,13 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 		keys := kt.ListKeys
 		delegateKeys := kt.DelegateKeys
 
-		if m.IsLoadTopics == false {
+		if m.IsLoadTopics.Load() == false {
 			// v := m.KafkaClusters[m.SelectedKafkaCluster]
 			// slog.Error("Toppp", "r", v, "r2", m.SelectedKafkaCluster, "a", m.KafkaClusters)
 
-			cmd := kt.loadTopics(m.KafkaClusters[m.SelectedKafkaCluster])
+			cmd := kt.loadTopics(m.GetClusterByTitle(m.SelectedKafkaCluster))
 			cmds = append(cmds, cmd)
-			m.IsLoadTopics = true
+			m.IsLoadTopics.Store(true)
 		}
 
 		switch msg := msg.(type) {
@@ -271,8 +272,8 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 			// newItem := m.itemGenerator.next()
 			for i, sm := range msg {
 				// slog.Info("Topic", "t", sm)
-				newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
-				// newItem := NewItemKafkaTopic(sm, "")
+				// newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
+				newItem := NewItemKafkaTopic(sm, "")
 
 				insCmd := kcl.InsertItem(i, newItem)
 				cmds = append(cmds, insCmd)

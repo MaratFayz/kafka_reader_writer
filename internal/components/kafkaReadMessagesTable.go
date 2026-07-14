@@ -1,6 +1,7 @@
 package components
 
 import (
+	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
 	"charm.land/bubbles/v2/table"
@@ -50,6 +51,18 @@ func (m *KafkaReadMessagesTableComponent) View() string {
 
 func (m *KafkaReadMessagesTableComponent) GetActiveRow() []string {
 	return m.table.SelectedRow()
+}
+
+func (m *KafkaReadMessagesTableComponent) SetValues(messages []*contracts.ReadMessagesRow) error {
+	rows := make([]table.Row, 0, len(messages))
+
+	for _, v := range messages {
+		rows = append(rows, v.Row)
+	}
+
+	m.table.SetRows(rows)
+
+	return nil
 }
 
 func CreateKafkaReadMessagesTable(m *windows.Model) *KafkaReadMessagesTableComponent {

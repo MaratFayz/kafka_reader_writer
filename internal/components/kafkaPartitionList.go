@@ -249,7 +249,7 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 			// v := m.KafkaClusters[m.SelectedKafkaCluster]
 			// slog.Error("Toppp", "r", v, "r2", m.SelectedKafkaCluster, "a", m.KafkaClusters)
 
-			cmd := kt.loadPartitions(m.KafkaClusters[m.SelectedKafkaCluster], m.SelectedKafkaTopic)
+			cmd := kt.loadPartitions(m.GetClusterByTitle(m.SelectedKafkaCluster), m.SelectedKafkaTopic)
 			cmds = append(cmds, cmd)
 			m.IsLoadPartitions = true
 		}

@@ -148,8 +148,8 @@ func (d *Db) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	res, err := d.conn.Exec("insert into sent_messages_history(cluster_id, body, status, date_time_sent)"+
-		"values ((select id from clusters c where c.url = $1 and c.username = $2 and c.title = $3), $4, 'OK', $5",
+	res, err := d.conn.Exec(`insert into sent_messages_history(cluster_id, body, status, date_time_sent) 
+	values ((select c.id from clusters c where c.url = $1 and c.username = $2 and c.title = $3), $4, 'OK', $5)`,
 		kafkaCluster.Url, kafkaCluster.Username, kafkaCluster.Title, messageToSave, time.Now())
 
 	if err != nil {
@@ -170,9 +170,34 @@ func (d *Db) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string
 
 	return nil
 }
-func (d *Db) GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error) {
+func (d *Db) GetMessages(kafkaCluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return nil, nil
+	messages := make([]*contracts.SentMessagesRow, 0)
 
+	rows, err := d.conn.Query(`select body, status, date_time_sent from sent_messages_history
+	where cluster_id = (select c.id from clusters c where c.url = $1 and c.username = $2 and c.title = $3)
+	limit 100`, kafkaCluster.Url, kafkaCluster.Username, kafkaCluster.Title)
+
+	if err != nil {
+		slog.Error("Ошибка при получении строк истории отправленных сообщений из БД", "err", err)
+		return nil, err
+	}
+
+	for rows.Next() {
+		var body string
+		var status string
+		var dateTimeSent string
+
+		err = rows.Scan(&body, &status, &dateTimeSent)
+
+		if err != nil {
+			slog.Error("Ошибка при получении строк истории отправленных сообщений из БД 2", "err", err)
+			return nil, err
+		}
+
+		messages = append(messages, &contracts.SentMessagesRow{Row: []string{body, status, dateTimeSent}})
+	}
+
+	return messages, nil
 }

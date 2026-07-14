@@ -29,5 +29,5 @@ func (ls *LocalStorage) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaT
 }
 
 func (ls *LocalStorage) GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error) {
-	return nil, nil
+	return ls.db.GetMessages(cluster, topic)
 }

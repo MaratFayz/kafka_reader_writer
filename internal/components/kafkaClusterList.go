@@ -253,7 +253,7 @@ func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *Ka
 		clusterList[i] = cluster // Каждый элемент преобразуется отдельно
 		clusterMap[cluster.Title] = cluster
 	}
-	model.KafkaClusters = clusterMap
+	model.SetClusters(clusterMap)
 	// fmt.Println(clusterList)
 	for i, v := range clusterList {
 		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))

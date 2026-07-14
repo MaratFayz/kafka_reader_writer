@@ -1,8 +1,9 @@
 package windows
 
 import (
-	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
+	"sync"
+	"sync/atomic"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -10,14 +11,20 @@ import (
 )
 
 type Model struct {
-	KafkaClusters        map[string]*contracts.KafkaCluster
+	kafkaClusters   map[string]*contracts.KafkaCluster
+	muKafkaClusters sync.Mutex
+
 	SelectedKafkaCluster string
 
-	kafkaTopics        map[string][]string
-	SelectedKafkaTopic string
-	IsLoadTopics       bool
+	kafkaTopics   map[string][]string
+	muKafkaTopics sync.Mutex
 
-	kafkaPartitions        map[string]map[string][]int
+	SelectedKafkaTopic string
+	IsLoadTopics       atomic.Bool
+
+	kafkaPartitions   map[string]map[string][]int
+	muKafkaPartitions sync.Mutex
+
 	SelectedKafkaPartition string
 	IsLoadPartitions       bool
 	ActivePane             int //0-cluster,1-topic,2-partitions,3-tabs
@@ -26,6 +33,41 @@ type Model struct {
 	kafkaTopicList     KafkaTopicList
 	kafkaPartitionList KafkaPartitionList
 	kafkaReadWriteTabs KafkaReadWriteTabsComponent
+}
+
+func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
+	m.muKafkaClusters.Lock()
+	defer m.muKafkaClusters.Unlock()
+
+	return m.kafkaClusters[title]
+}
+
+func (m *Model) SetClusters(clusters map[string]*contracts.KafkaCluster) {
+	m.muKafkaClusters.Lock()
+	defer m.muKafkaClusters.Unlock()
+
+	m.kafkaClusters = clusters
+}
+
+func (m *Model) GetKafkaTopics(title string) []string {
+	m.muKafkaTopics.Lock()
+	defer m.muKafkaTopics.Unlock()
+
+	return m.kafkaTopics[title]
+}
+
+func (m *Model) SetKafkaTopics(title string, topics []string) {
+	m.muKafkaTopics.Lock()
+	defer m.muKafkaTopics.Unlock()
+
+	m.kafkaTopics[title] = topics
+}
+
+func (m *Model) GetKafkaPartitions(title string, topic string) []int {
+	m.muKafkaPartitions.Lock()
+	defer m.muKafkaPartitions.Unlock()
+
+	return m.kafkaPartitions[title][topic]
 }
 
 type KafkaReadWriteTabsComponent interface {
@@ -75,9 +117,7 @@ func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
 }
 
 func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
-	// slog.Error("aaa", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
-	m.kafkaTopics[kafkaCluster] = topics
-	// slog.Error("aaa2", "aa", m.kafkaTopics, "sd", m.kafkaTopics[kafkaCluster], "gg", topics, "kafkaCluster", kafkaCluster)
+	m.SetKafkaTopics(kafkaCluster, topics)
 }
 
 func (m *Model) SetActivePaneAfterKafkaPartitionChosen(activePane int) {
@@ -89,6 +129,13 @@ func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
 }
 
 func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int) {
+	m.muKafkaClusters.Lock()
+	m.muKafkaPartitions.Lock()
+	m.muKafkaTopics.Lock()
+	defer m.muKafkaClusters.Unlock()
+	defer m.muKafkaPartitions.Unlock()
+	defer m.muKafkaTopics.Unlock()
+
 	if m.kafkaPartitions == nil {
 		m.kafkaPartitions = make(map[string]map[string][]int)
 	}
@@ -107,7 +154,7 @@ func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName st
 
 	c[topicName] = append(t, partitions...)
 
-	slog.Info("A", "a", m.ActivePane)
+	// slog.Info("A", "a", m.ActivePane)
 }
 
 // type KafkaCluster interface {
@@ -127,10 +174,10 @@ type LocalStorage interface {
 func InitialModel(ls LocalStorage) *Model {
 	model := &Model{
 		ActivePane:       0,
-		KafkaClusters:    make(map[string]*contracts.KafkaCluster),
+		kafkaClusters:    make(map[string]*contracts.KafkaCluster),
 		kafkaTopics:      make(map[string][]string),
 		kafkaPartitions:  make(map[string]map[string][]int),
-		IsLoadTopics:     false,
+		IsLoadTopics:     atomic.Bool{},
 		IsLoadPartitions: false,
 	}
 

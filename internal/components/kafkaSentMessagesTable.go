@@ -71,16 +71,16 @@ func CreateKafkaSendMessageTable(m *windows.Model) *KafkaSendMessageTableCompone
 		{Title: "Time", Width: 5},
 	}
 
-	rows := []table.Row{
-		{"1", "Tokyo", "asd"},
-		{"2", "Delhi", "asd"},
-		{"3", "Shanghai", "China"},
-		{"4", "Dhaka", "Bangladesh"},
-	}
+	// rows := []table.Row{
+	// 	{"1", "Tokyo", "asd"},
+	// 	{"2", "Delhi", "asd"},
+	// 	{"3", "Shanghai", "China"},
+	// 	{"4", "Dhaka", "Bangladesh"},
+	// }
 
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithRows(rows),
+		// table.WithRows(rows),
 		table.WithFocused(true),
 		table.WithHeight(7),
 		table.WithWidth(42),
