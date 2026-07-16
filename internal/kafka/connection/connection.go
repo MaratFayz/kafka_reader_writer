@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"log/slog"
@@ -323,29 +324,89 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 		slog.Error("Connection is not initiated", "err", err)
 		return nil, err
 	}
+	defer conn.Close()
 
-	batch := conn.ReadBatch(200*50, 1000*50)
+	// 2. Получаем последний доступный оффсет
+	lastOffset, err := conn.ReadLastOffset()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read last offset: %w", err)
+	}
+
+	// Если сообщений в партиции нет, последний оффсет будет -1
+	if lastOffset < 0 {
+		return nil, fmt.Errorf("no messages in partition")
+	}
+
+	slog.Error("l", "l", lastOffset)
+
+	// 3. Создаем Reader для чтения с найденного оффсета
+	// Важно: используем тот же контекст или новый для чтения
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{kafkaCluster.Url},
+		Topic:   kafkaTopic,
+		Dialer:  dialer,
+	})
+	defer reader.Close()
+
+	// // Устанавливаем оффсет на последнее сообщение
+	err = reader.SetOffset(lastOffset - 3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set offset: %w", err)
+	}
+
+	// 4. Читаем одно сообщение
+	// Используем новый контекст для операции чтения
+	readCtx, readCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readCancel()
+
+	// msg, err := reader.ReadMessage(readCtx)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to read message: %w", err)
+	// }
+
+	// log.Fatal("offset", "offset", offset, "w", w)
+
 	res := make([]*contracts.ReadMessagesRow, 0)
 
-	if err := batch.Err(); err != nil {
-		slog.Error("Batch is failed", "err", err)
-		return nil, err
-	}
-
-	for range 50 {
-
-		message, err := batch.ReadMessage()
+	for range 3 {
+		// message, err := conn.ReadMessage(2147483566)
+		message, err := reader.ReadMessage(readCtx)
 
 		if err != nil {
-			log.Fatal("failed to read message:", err)
+			slog.Error("failed to read message:", "err", err)
 		}
 
-		m := string(message.Value)
+		// slog.Error("m", "mm", string(message.Value))
 
-		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), m}})
+		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), string(message.Value)}})
 	}
 
-	slog.Error("Mes read kafka------------------------>", "mes", res)
+	// batch := conn.ReadBatch(1000, 2147483566)
+	// defer batch.Close()
+	// if err := batch.Close(); err != nil {
+	// 	slog.Error("Batch is failed when close", "err", err)
+	// 	return nil, err
+	// }
 
+	// if err := batch.Err(); err != nil {
+	// 	log.Fatal("Batch is failed", "err", err)
+	// 	return nil, err
+	// }
+
+	// for range 50 {
+	// 	message, err := batch.ReadMessage()
+
+	// 	if err != nil {
+	// 		log.Fatal("failed to read message:", err)
+	// 	}
+
+	// 	m := string(message.Value)
+
+	// 	res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), m}})
+	// }
+
+	// slog.Error("Mes read kafka------------------------>", "mes", res)
+
+	// res = append(res, &contracts.ReadMessagesRow{Row: []string{"1", "2", "3"}})
 	return res, nil
 }

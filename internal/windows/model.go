@@ -27,13 +27,22 @@ type Model struct {
 
 	SelectedKafkaPartition string
 	IsLoadPartitions       bool
-	ActivePane             int //0-cluster,1-topic,2-partitions,3-tabs
+	activePane             activePane
 
 	kafkaClusterList   KafkaClusterList
 	kafkaTopicList     KafkaTopicList
 	kafkaPartitionList KafkaPartitionList
 	kafkaReadWriteTabs KafkaReadWriteTabsComponent
 }
+
+type activePane int
+
+const (
+	CLUSTERS activePane = iota
+	TOPICS
+	PARTITIONS
+	TABS_READ_WRITE
+)
 
 func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
 	m.muKafkaClusters.Lock()
@@ -74,6 +83,7 @@ type KafkaReadWriteTabsComponent interface {
 	Update(msg tea.Msg, model *Model) (tea.Model, tea.Cmd)
 	View() string
 	Init() tea.Cmd
+	IsFocusOnTabs() bool
 }
 
 type KafkaClusterList interface {
@@ -100,16 +110,16 @@ type StylesKafkaCluster interface {
 	GetStatusMessage() lipgloss.Style
 }
 
-func (m *Model) SetActivePaneAfterKafkaClusterChosen(activePane int) {
-	m.ActivePane = activePane
+func (m *Model) KafkaClusterChosenNextActivePane() {
+	m.activePane = TOPICS
 }
 
 func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
 	m.SelectedKafkaCluster = selectedKafkaCluster
 }
 
-func (m *Model) SetActivePaneAfterKafkaTopicChosen(activePane int) {
-	m.ActivePane = activePane
+func (m *Model) SetActivePaneAfterKafkaTopicChosen() {
+	m.activePane = PARTITIONS
 }
 
 func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
@@ -120,8 +130,8 @@ func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
 	m.SetKafkaTopics(kafkaCluster, topics)
 }
 
-func (m *Model) SetActivePaneAfterKafkaPartitionChosen(activePane int) {
-	m.ActivePane = activePane
+func (m *Model) KafkaPartitionChosenNextActivePane() {
+	m.activePane = TABS_READ_WRITE
 }
 
 func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
@@ -153,19 +163,7 @@ func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName st
 	t = c[topicName]
 
 	c[topicName] = append(t, partitions...)
-
-	// slog.Info("A", "a", m.ActivePane)
 }
-
-// type KafkaCluster interface {
-// 	Title() string
-// 	Url() string
-// 	TrustStorePath() string
-// 	TrustStorePassword() string
-// 	Username() string
-// 	Password() string
-// 	SaslMechanism() string
-// }
 
 type LocalStorage interface {
 	GetKafkaClusters() []*contracts.KafkaCluster
@@ -173,7 +171,7 @@ type LocalStorage interface {
 
 func InitialModel(ls LocalStorage) *Model {
 	model := &Model{
-		ActivePane:       0,
+		activePane:       CLUSTERS,
 		kafkaClusters:    make(map[string]*contracts.KafkaCluster),
 		kafkaTopics:      make(map[string][]string),
 		kafkaPartitions:  make(map[string]map[string][]int),
@@ -199,12 +197,43 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	_, cmd4 := m.kafkaReadWriteTabs.Update(msg, m)
-	_, cmd3 := m.kafkaPartitionList.Update(msg, m)
-	_, cmd2 := m.kafkaTopicList.Update(msg, m)
-	_, cmd := m.kafkaClusterList.Update(msg, m)
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch keypress := msg.String(); keypress {
+		case "esc":
+			switch m.activePane {
+			case TOPICS:
+				m.activePane = CLUSTERS
+				return m, nil
+			case PARTITIONS:
+				m.activePane = TOPICS
+				return m, nil
 
-	return m, tea.Batch(cmd, cmd2, cmd3, cmd4)
+			case TABS_READ_WRITE:
+				if m.kafkaReadWriteTabs.IsFocusOnTabs() {
+					m.activePane = PARTITIONS
+				}
+				return m, nil
+			}
+		}
+	}
+
+	switch m.activePane {
+	case CLUSTERS:
+		_, cmd := m.kafkaClusterList.Update(msg, m)
+		return m, tea.Batch(cmd)
+	case TOPICS:
+		_, cmd := m.kafkaTopicList.Update(msg, m)
+		return m, tea.Batch(cmd)
+	case PARTITIONS:
+		_, cmd := m.kafkaPartitionList.Update(msg, m)
+		return m, tea.Batch(cmd)
+	case TABS_READ_WRITE:
+		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
+		return m, tea.Batch(cmd)
+	}
+
+	return m, nil
 }
 
 func (m *Model) View() tea.View {

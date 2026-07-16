@@ -7,7 +7,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -28,7 +27,7 @@ func (k *KafkaClusterList) GetStyles() windows.StylesKafkaCluster {
 }
 
 type ModelChangerKafkaCluster interface {
-	SetActivePaneAfterKafkaClusterChosen(activePane int)
+	KafkaClusterChosenNextActivePane()
 	SetChosenKafkaCluster(name string)
 }
 
@@ -45,7 +44,7 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.SetActivePaneAfterKafkaClusterChosen(1)
+			u.model.KafkaClusterChosenNextActivePane()
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
 				title = i.Title()
 				u.model.SetChosenKafkaCluster(title)
@@ -265,80 +264,82 @@ func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *Ka
 func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if m.ActivePane == 0 {
-		kcl := kc.List
-		keys := kc.ListKeys
-		delegateKeys := kc.DelegateKeys
+	// if m.ActivePane == 0 {
+	kcl := kc.List
+	keys := kc.ListKeys
+	delegateKeys := kc.DelegateKeys
 
-		switch msg := msg.(type) {
-		case tea.BackgroundColorMsg:
-			// m.darkBG = msg.IsDark()
-			// m.updateListProperties()
-			fmt.Printf("%s", msg)
-			return m, nil
+	switch msg := msg.(type) {
+	case tea.BackgroundColorMsg:
+		// m.darkBG = msg.IsDark()
+		// m.updateListProperties()
+		fmt.Printf("%s", msg)
+		return m, nil
 
-		case tea.WindowSizeMsg:
-			// m.width, m.height = msg.Width, msg.Height
-			// m.updateListProperties()
-			return m, nil
+	case tea.WindowSizeMsg:
+		// m.width, m.height = msg.Width, msg.Height
+		// m.updateListProperties()
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		// Don't match any of the keys below if we're actively filtering.
+		if kcl.FilterState() == list.Filtering {
+			break
 		}
 
-		switch msg := msg.(type) {
-		case tea.KeyPressMsg:
-			// Don't match any of the keys below if we're actively filtering.
-			if kcl.FilterState() == list.Filtering {
-				break
-			}
+		switch {
+		case key.Matches(msg, keys.ToggleSpinner):
+			cmd := kcl.ToggleSpinner()
+			// statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.ActivePane))
+			// return m, tea.Batch(cmd, statusCmd)
+			return m, cmd
 
-			switch {
-			case key.Matches(msg, keys.ToggleSpinner):
-				cmd := kcl.ToggleSpinner()
-				statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.ActivePane))
-				return m, tea.Batch(cmd, statusCmd)
+		case key.Matches(msg, keys.ToggleTitleBar):
+			v := !kcl.ShowTitle()
+			kcl.SetShowTitle(v)
+			kcl.SetShowFilter(v)
+			kcl.SetFilteringEnabled(v)
+			return m, nil
 
-			case key.Matches(msg, keys.ToggleTitleBar):
-				v := !kcl.ShowTitle()
-				kcl.SetShowTitle(v)
-				kcl.SetShowFilter(v)
-				kcl.SetFilteringEnabled(v)
-				return m, nil
+		case key.Matches(msg, keys.ToggleStatusBar):
+			kcl.SetShowStatusBar(!kcl.ShowStatusBar())
+			return m, nil
 
-			case key.Matches(msg, keys.ToggleStatusBar):
-				kcl.SetShowStatusBar(!kcl.ShowStatusBar())
-				return m, nil
+		case key.Matches(msg, keys.TogglePagination):
+			kcl.SetShowPagination(!kcl.ShowPagination())
+			return m, nil
 
-			case key.Matches(msg, keys.TogglePagination):
-				kcl.SetShowPagination(!kcl.ShowPagination())
-				return m, nil
+		case key.Matches(msg, keys.ToggleHelpMenu):
+			kcl.SetShowHelp(!kcl.ShowHelp())
+			return m, nil
 
-			case key.Matches(msg, keys.ToggleHelpMenu):
-				kcl.SetShowHelp(!kcl.ShowHelp())
-				return m, nil
-
-			case key.Matches(msg, keys.InsertItem):
-				delegateKeys.Remove.SetEnabled(true)
-				// newItem := m.itemGenerator.next()
-				newItem := NewItemKafkaCluster("aaa", "bbb")
-				insCmd := kcl.InsertItem(0, newItem)
-				statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.ActivePane))
-				return m, tea.Batch(insCmd, statusCmd)
-			}
-		}
-
-		// This will also call our delegate's update function.
-		newListModel, cmd := kcl.Update(msg)
-		kc.List = &newListModel
-		cmds = append(cmds, cmd)
-	} else if m.ActivePane != 0 {
-		// slog.Info("XXXXXX", "pane", m.ActivePane)
-		switch msg := msg.(type) {
-		case spinner.TickMsg:
-			newListModel, cmd := kc.List.Update(msg)
-			kc.List = &newListModel
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+		case key.Matches(msg, keys.InsertItem):
+			delegateKeys.Remove.SetEnabled(true)
+			// newItem := m.itemGenerator.next()
+			newItem := NewItemKafkaCluster("aaa", "bbb")
+			insCmd := kcl.InsertItem(0, newItem)
+			// statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.ActivePane))
+			// return m, tea.Batch(insCmd, statusCmd)
+			return m, insCmd
 		}
 	}
+
+	// This will also call our delegate's update function.
+	newListModel, cmd := kcl.Update(msg)
+	kc.List = &newListModel
+	cmds = append(cmds, cmd)
+	// } else if m.ActivePane != 0 {
+	// 	// slog.Info("XXXXXX", "pane", m.ActivePane)
+	// 	switch msg := msg.(type) {
+	// 	case spinner.TickMsg:
+	// 		newListModel, cmd := kc.List.Update(msg)
+	// 		kc.List = &newListModel
+	// 		cmds = append(cmds, cmd)
+	// 		return m, tea.Batch(cmds...)
+	// 	}
+	// }
 
 	return m, tea.Batch(cmds...)
 }

@@ -161,6 +161,10 @@ type errorWhenSetMessagesToReadMessagesTableCmd struct {
 	error error
 }
 
+func (k *KafkaReadWriteTabsComponent) IsFocusOnTabs() bool {
+	return k.activeComponentReadTab == TABS_READ && k.activeComponentWriteTab == TABS_WRITE
+}
+
 func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	getMessagesFromHistoryCmd := func() tea.Msg {
 		cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
@@ -178,205 +182,201 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 	//добавить проверку, какая вкладка видима и направлять туда события
 	cmds := make([]tea.Cmd, 0)
 
-	if m.ActivePane == 3 {
-		if k.isLoadHistorySentMessages.Load() == false {
-			cmds = append(cmds, getMessagesFromHistoryCmd)
-			k.isLoadHistorySentMessages.Store(true)
+	if k.isLoadHistorySentMessages.Load() == false {
+		cmds = append(cmds, getMessagesFromHistoryCmd)
+		k.isLoadHistorySentMessages.Store(true)
+	}
+
+	switch msg := msg.(type) {
+	case successWhenSaveMessageToHistory:
+		cmds = append(cmds, getMessagesFromHistoryCmd)
+		return m, tea.Batch(cmds...)
+	case successWhenGetMessagesFromHistory:
+		setMessagesHistoryMessagesTableCmd := func() tea.Msg {
+			err := k.kafkaSendMessageTableComponent.SetValues(msg.messages)
+
+			if err != nil {
+				return errorWhenSetMessagesHistoryMessagesTableCmd{error: err}
+			}
+
+			return successWhenSetMessagesHistoryMessagesTableCmd{}
 		}
+		cmds = append(cmds, setMessagesHistoryMessagesTableCmd)
 
-		switch msg := msg.(type) {
-		case successWhenSaveMessageToHistory:
-			cmds = append(cmds, getMessagesFromHistoryCmd)
-			return m, tea.Batch(cmds...)
+		return m, tea.Batch(cmds...)
+	case successWhenReadMessagesFromKafka:
+		slog.Error("successWhenReadMessagesFromKafka", "TABLE_READ", "err")
 
-		case successWhenGetMessagesFromHistory:
-			setMessagesHistoryMessagesTableCmd := func() tea.Msg {
-				err := k.kafkaSendMessageTableComponent.SetValues(msg.messages)
+		setMessagesToReadMessagesTableCmd := func() tea.Msg {
+			err := k.kafkaReadMessageTable.SetValues(msg.messages)
 
-				if err != nil {
-					return errorWhenSetMessagesHistoryMessagesTableCmd{error: err}
-				}
-
-				return successWhenSetMessagesHistoryMessagesTableCmd{}
+			if err != nil {
+				return errorWhenSetMessagesToReadMessagesTableCmd{error: err}
 			}
-			cmds = append(cmds, setMessagesHistoryMessagesTableCmd)
 
-			return m, tea.Batch(cmds...)
+			return successWhenSetMessagesToReadMessagesTableCmd{}
+		}
+		cmds = append(cmds, setMessagesToReadMessagesTableCmd)
 
-		case successWhenReadMessagesFromKafka:
-			slog.Error("successWhenReadMessagesFromKafka", "TABLE_READ", "err")
+		return m, tea.Batch(cmds...)
+	case errorWhenReadMessagesFromKafka:
+		tea.Println("errorWhenReadMessagesFromKafka", "TABLE_READ", "err")
+		return m, tea.Batch(cmds...)
+	case tea.KeyPressMsg:
+		switch k.activeTab {
+		case WRITE:
+			switch k.activeComponentWriteTab {
+			case TEXT_AREA_WRITE:
+				switch keypress := msg.String(); keypress {
+				case "down":
+					k.activeComponentWriteTab = min(k.activeComponentWriteTab+1, 3)
+					return m, tea.Batch(cmds...)
+				case "up":
+					k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
+					return m, tea.Batch(cmds...)
+				case "ctrl+s":
+					textToSend := k.kafkaSendMessageTextAreaComponent.GetText()
+					// k.kafkaSendMessageTextAreaComponent.SetText("")
+					cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
+					topic := m.SelectedKafkaTopic
+					partition := m.SelectedKafkaPartition
 
-			setMessagesToReadMessagesTableCmd := func() tea.Msg {
-				err := k.kafkaReadMessageTable.SetValues(msg.messages)
+					sendMessageCmd := func() tea.Msg {
+						err := k.kafkaProducerConsumer.Send(cluster, topic, partition, textToSend)
 
-				if err != nil {
-					return errorWhenSetMessagesToReadMessagesTableCmd{error: err}
+						if err != nil {
+							return errorWhenSendMessageToKafka{error: err}
+						}
+
+						return successWhenSendMessageToKafka{}
+					}
+
+					saveMessageToHistoryCmd := func() tea.Msg {
+						err := k.historySentMessages.SaveMessage(cluster, topic, textToSend)
+
+						if err != nil {
+							return errorWhenSaveMessageToHistory{error: err}
+						}
+
+						return successWhenSaveMessageToHistory{}
+					}
+
+					cmds = append(cmds, sendMessageCmd, saveMessageToHistoryCmd)
+					return m, tea.Batch(cmds...)
+				default:
+					var ok bool
+					m2, cmd := k.kafkaSendMessageTextAreaComponent.Update(msg, m)
+
+					m, ok = m2.(*windows.Model)
+					if !ok {
+						// Handle the case where m2 is not *windows.Model
+						log.Fatal("m2 is not a *windows.Model")
+					}
+
+					cmds = append(cmds, cmd)
+					return m, tea.Batch(cmds...)
 				}
+			case TABLE_WRITE:
+				switch keypress := msg.String(); keypress {
+				case "enter":
+					columns := k.kafkaSendMessageTableComponent.GetActiveRow()
+					if len(columns) > 0 {
+						k.kafkaSendMessageTextAreaComponent.SetText(k.kafkaSendMessageTableComponent.GetActiveRow()[0])
+					}
+					k.activeComponentWriteTab = TEXT_AREA_WRITE
+					return m, tea.Batch(cmds...)
+				case "up":
+					k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
+					return m, tea.Batch(cmds...)
+				default:
+					var ok bool
+					m2, cmd := k.kafkaSendMessageTableComponent.Update(msg, m)
 
-				return successWhenSetMessagesToReadMessagesTableCmd{}
+					m, ok = m2.(*windows.Model)
+					if !ok {
+						// Handle the case where m2 is not *windows.Model
+						log.Fatal("m2 is not a *windows.Model")
+					}
+
+					cmds = append(cmds, cmd)
+					return m, tea.Batch(cmds...)
+				}
+			case TABS_WRITE:
+				switch keypress := msg.String(); keypress {
+				case "ctrl+c", "q":
+					cmds = append(cmds, tea.Quit)
+					return m, tea.Batch(cmds...)
+				case "right", "l", "n", "tab":
+					k.activeTab = min(k.activeTab+1, activeTab(len(k.Tabs)-1))
+					return m, tea.Batch(cmds...)
+				case "left", "h", "p", "shift+tab":
+					k.activeTab = max(k.activeTab-1, 0)
+					return m, tea.Batch(cmds...)
+				case "down":
+					k.activeComponentWriteTab = min(k.activeComponentWriteTab+1, 3)
+					return m, tea.Batch(cmds...)
+				case "esc":
+				}
 			}
-			cmds = append(cmds, setMessagesToReadMessagesTableCmd)
-
-			return m, tea.Batch(cmds...)
-		case errorWhenReadMessagesFromKafka:
-			slog.Error("errorWhenReadMessagesFromKafka", "TABLE_READ", "err")
-			return m, tea.Batch(cmds...)
-
-		case tea.KeyPressMsg:
-			switch k.activeTab {
-			case WRITE:
-				switch k.activeComponentWriteTab {
-				case TEXT_AREA_WRITE:
-					switch keypress := msg.String(); keypress {
-					case "down":
-						k.activeComponentWriteTab = min(k.activeComponentWriteTab+1, 3)
-						return m, tea.Batch(cmds...)
-					case "up":
-						k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
-						return m, tea.Batch(cmds...)
-					case "ctrl+s":
-						textToSend := k.kafkaSendMessageTextAreaComponent.GetText()
-						// k.kafkaSendMessageTextAreaComponent.SetText("")
-						cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
-						topic := m.SelectedKafkaTopic
-						partition := m.SelectedKafkaPartition
-
-						sendMessageCmd := func() tea.Msg {
-							err := k.kafkaProducerConsumer.Send(cluster, topic, partition, textToSend)
-
-							if err != nil {
-								return errorWhenSendMessageToKafka{error: err}
-							}
-
-							return successWhenSendMessageToKafka{}
-						}
-
-						saveMessageToHistoryCmd := func() tea.Msg {
-							err := k.historySentMessages.SaveMessage(cluster, topic, textToSend)
-
-							if err != nil {
-								return errorWhenSaveMessageToHistory{error: err}
-							}
-
-							return successWhenSaveMessageToHistory{}
-						}
-
-						cmds = append(cmds, sendMessageCmd, saveMessageToHistoryCmd)
-						return m, tea.Batch(cmds...)
-					default:
-						var ok bool
-						m2, cmd := k.kafkaSendMessageTextAreaComponent.Update(msg, m)
-
-						m, ok = m2.(*windows.Model)
-						if !ok {
-							// Handle the case where m2 is not *windows.Model
-							log.Fatal("m2 is not a *windows.Model")
-						}
-
-						cmds = append(cmds, cmd)
-						return m, tea.Batch(cmds...)
-					}
-				case TABLE_WRITE:
-					switch keypress := msg.String(); keypress {
-					case "enter":
-						columns := k.kafkaSendMessageTableComponent.GetActiveRow()
-						if len(columns) > 0 {
-							k.kafkaSendMessageTextAreaComponent.SetText(k.kafkaSendMessageTableComponent.GetActiveRow()[0])
-						}
-						k.activeComponentWriteTab = TEXT_AREA_WRITE
-						return m, tea.Batch(cmds...)
-					case "up":
-						k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
-						return m, tea.Batch(cmds...)
-					default:
-						var ok bool
-						m2, cmd := k.kafkaSendMessageTableComponent.Update(msg, m)
-
-						m, ok = m2.(*windows.Model)
-						if !ok {
-							// Handle the case where m2 is not *windows.Model
-							log.Fatal("m2 is not a *windows.Model")
-						}
-
-						cmds = append(cmds, cmd)
-						return m, tea.Batch(cmds...)
-					}
-				case TABS_WRITE:
-					switch keypress := msg.String(); keypress {
-					case "ctrl+c", "q":
-						cmds = append(cmds, tea.Quit)
-						return m, tea.Batch(cmds...)
-					case "right", "l", "n", "tab":
-						k.activeTab = min(k.activeTab+1, activeTab(len(k.Tabs)-1))
-						return m, tea.Batch(cmds...)
-					case "left", "h", "p", "shift+tab":
-						k.activeTab = max(k.activeTab-1, 0)
-						return m, tea.Batch(cmds...)
-					case "down":
-						k.activeComponentWriteTab = min(k.activeComponentWriteTab+1, 3)
-						return m, tea.Batch(cmds...)
-					}
+		case READ:
+			switch k.activeComponentReadTab {
+			case TABS_READ:
+				switch keypress := msg.String(); keypress {
+				case "ctrl+c", "q":
+					cmds = append(cmds, tea.Quit)
+					return m, tea.Batch(cmds...)
+				case "right", "l", "n", "tab":
+					k.activeTab = min(k.activeTab+1, activeTab(len(k.Tabs)-1))
+					return m, tea.Batch(cmds...)
+				case "left", "h", "p", "shift+tab":
+					k.activeTab = max(k.activeTab-1, 0)
+					return m, tea.Batch(cmds...)
+				case "down":
+					k.activeComponentReadTab = min(k.activeComponentReadTab+1, 1)
+					return m, tea.Batch(cmds...)
 				}
-			case READ:
-				switch k.activeComponentReadTab {
-				case TABS_READ:
-					switch keypress := msg.String(); keypress {
-					case "ctrl+c", "q":
-						cmds = append(cmds, tea.Quit)
-						return m, tea.Batch(cmds...)
-					case "right", "l", "n", "tab":
-						k.activeTab = min(k.activeTab+1, activeTab(len(k.Tabs)-1))
-						return m, tea.Batch(cmds...)
-					case "left", "h", "p", "shift+tab":
-						k.activeTab = max(k.activeTab-1, 0)
-						return m, tea.Batch(cmds...)
-					case "down":
-						k.activeComponentReadTab = min(k.activeComponentReadTab+1, 1)
-						return m, tea.Batch(cmds...)
-					}
-				case TABLE_READ:
-					switch keypress := msg.String(); keypress {
-					case "s":
-						slog.Error("TABLE_READ", "s", "err")
+			case TABLE_READ:
+				switch keypress := msg.String(); keypress {
+				case "s":
+					slog.Error("TABLE_READ", "s", "err")
 
-						cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
-						topic := m.SelectedKafkaTopic
-						partition := m.SelectedKafkaPartition
+					cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
+					topic := m.SelectedKafkaTopic
+					partition := m.SelectedKafkaPartition
 
-						readMessagesFromKafkaCmd := func() tea.Msg {
-							numberOfReadMessages := 10
-							messages, err := k.kafkaProducerConsumer.Read(cluster, topic, partition, numberOfReadMessages)
+					readMessagesFromKafkaCmd := func() tea.Msg {
+						numberOfReadMessages := 10
+						messages, err := k.kafkaProducerConsumer.Read(cluster, topic, partition, numberOfReadMessages)
 
-							if err != nil {
-								tea.Println("Errrrr 1")
-								slog.Error("Errrrr 1", "e", err)
-								return errorWhenReadMessagesFromKafka{error: err}
-							}
-
-							// slog.Error("Mes 1", "e", messages)
-							tea.Println("Mes 1 1")
-
-							return successWhenReadMessagesFromKafka{messages: messages}
+						if err != nil {
+							tea.Println("Errrrr 1")
+							slog.Error("Errrrr 1", "e", err)
+							return errorWhenReadMessagesFromKafka{error: err}
 						}
 
-						cmds = append(cmds, readMessagesFromKafkaCmd)
-						return m, tea.Batch(cmds...)
-					case "up":
-						k.activeComponentReadTab = max(k.activeComponentReadTab-1, 0)
-						return m, tea.Batch(cmds...)
-					default:
-						var ok bool
-						m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
+						// slog.Error("Mes 1", "e", messages)
+						tea.Println("Mes 1 1")
 
-						m, ok = m2.(*windows.Model)
-						if !ok {
-							// Handle the case where m2 is not *windows.Model
-							log.Fatal("m2 is not a *windows.Model")
-						}
-
-						cmds = append(cmds, cmd)
-						return m, tea.Batch(cmds...)
+						return successWhenReadMessagesFromKafka{messages: messages}
 					}
+
+					cmds = append(cmds, readMessagesFromKafkaCmd)
+					return m, tea.Batch(cmds...)
+				case "esc":
+					k.activeComponentReadTab = max(k.activeComponentReadTab-1, 0)
+					return m, tea.Batch(cmds...)
+				default:
+					var ok bool
+					m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
+
+					m, ok = m2.(*windows.Model)
+					if !ok {
+						// Handle the case where m2 is not *windows.Model
+						log.Fatal("m2 is not a *windows.Model")
+					}
+
+					cmds = append(cmds, cmd)
+					return m, tea.Batch(cmds...)
 				}
 			}
 		}
