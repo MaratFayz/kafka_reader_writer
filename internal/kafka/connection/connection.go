@@ -349,7 +349,7 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 	defer reader.Close()
 
 	// // Устанавливаем оффсет на последнее сообщение
-	err = reader.SetOffset(lastOffset - 3)
+	err = reader.SetOffset(lastOffset - int64(numberOfReadMessages))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set offset: %w", err)
 	}
@@ -368,17 +368,19 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 
 	res := make([]*contracts.ReadMessagesRow, 0)
 
-	for range 3 {
+	for range numberOfReadMessages {
 		// message, err := conn.ReadMessage(2147483566)
 		message, err := reader.ReadMessage(readCtx)
 
 		if err != nil {
-			slog.Error("failed to read message:", "err", err)
+			//end of messages
+			// slog.Error("failed to read message:", "err", err)
+			break
 		}
 
 		// slog.Error("m", "mm", string(message.Value))
 
-		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), string(message.Value)}})
+		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.String(), string(message.Value)}})
 	}
 
 	// batch := conn.ReadBatch(1000, 2147483566)

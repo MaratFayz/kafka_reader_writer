@@ -3,7 +3,6 @@ package windows
 import (
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"sync"
-	"sync/atomic"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -20,7 +19,7 @@ type Model struct {
 	muKafkaTopics sync.Mutex
 
 	SelectedKafkaTopic string
-	IsLoadTopics       atomic.Bool
+	IsLoadTopics       map[string]bool
 
 	kafkaPartitions   map[string]map[string][]int
 	muKafkaPartitions sync.Mutex
@@ -110,16 +109,29 @@ type StylesKafkaCluster interface {
 	GetStatusMessage() lipgloss.Style
 }
 
-func (m *Model) KafkaClusterChosenNextActivePane() {
+func (m *Model) KafkaClusterChosenNextActivePane() tea.Cmd {
 	m.activePane = TOPICS
+	return func() tea.Msg {
+		return initList{}
+	}
 }
 
 func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
 	m.SelectedKafkaCluster = selectedKafkaCluster
 }
 
-func (m *Model) SetActivePaneAfterKafkaTopicChosen() {
+func (m *Model) KafkaTopicChosenNextActivePane() tea.Cmd {
 	m.activePane = PARTITIONS
+	return func() tea.Msg {
+		return initList{}
+	}
+}
+
+type initList struct {
+}
+
+func (i initList) IsInitList() bool {
+	return true
 }
 
 func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
@@ -175,7 +187,7 @@ func InitialModel(ls LocalStorage) *Model {
 		kafkaClusters:    make(map[string]*contracts.KafkaCluster),
 		kafkaTopics:      make(map[string][]string),
 		kafkaPartitions:  make(map[string]map[string][]int),
-		IsLoadTopics:     atomic.Bool{},
+		IsLoadTopics:     make(map[string]bool),
 		IsLoadPartitions: false,
 	}
 

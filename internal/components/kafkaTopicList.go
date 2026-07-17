@@ -30,7 +30,7 @@ func (k *KafkaTopicList) GetStyles() windows.StylesKafkaCluster {
 }
 
 type ModelChangerKafkaTopic interface {
-	SetActivePaneAfterKafkaTopicChosen()
+	KafkaTopicChosenNextActivePane() tea.Cmd
 	SetChosenKafkaTopic(name string)
 	SetTopicsForCluster(clusterName string, topics []string)
 }
@@ -52,7 +52,7 @@ func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd 
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.SetActivePaneAfterKafkaTopicChosen()
+			cmd := u.model.KafkaTopicChosenNextActivePane()
 
 			if i, ok := m.SelectedItem().(ItemKafkaTopic); ok {
 				// title = i.Description()
@@ -63,7 +63,7 @@ func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd 
 				return nil
 			}
 
-			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
+			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")), cmd)
 
 		case key.Matches(msg, u.keys.Remove):
 			index := m.Index()
@@ -238,6 +238,10 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider 
 	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles, model, kafkaConnectorProvider}
 }
 
+type initList interface {
+	IsInitList() bool
+}
+
 func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -246,29 +250,36 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 	keys := kt.ListKeys
 	delegateKeys := kt.DelegateKeys
 
-	if m.IsLoadTopics.Load() == false {
-		cmd := kt.loadTopics(m.GetClusterByTitle(m.SelectedKafkaCluster))
-		cmds = append(cmds, cmd)
-		m.IsLoadTopics.Store(true)
-	}
-
 	switch msg := msg.(type) {
-	case tea.BackgroundColorMsg:
-		// m.darkBG = msg.IsDark()
-		// m.updateListProperties()
-		fmt.Printf("%s", msg)
-		return m, nil
+	case initList:
+		v, ok := m.IsLoadTopics[m.SelectedKafkaCluster]
 
-	case tea.WindowSizeMsg:
-		// m.width, m.height = msg.Width, msg.Height
-		// m.updateListProperties()
-		return m, nil
-	case kafkaTopicsMsg:
+		if !ok {
+			m.IsLoadTopics[m.SelectedKafkaCluster] = false
+			v = m.IsLoadTopics[m.SelectedKafkaCluster]
+		}
+
+		if v == false {
+			cmd := kt.loadTopics(m.GetClusterByTitle(m.SelectedKafkaCluster))
+			cmds = append(cmds, cmd)
+			m.IsLoadTopics[m.SelectedKafkaCluster] = true
+		} else {
+			cmd := kt.showTopics()
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+	case loadedKafkaTopicsMsg:
+		kt.model.SetTopicsForCluster(msg.cluster, msg.topics)
+		cmd := func() tea.Msg {
+			return showKafkaTopicsMsg{}
+		}
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
+	case showKafkaTopicsMsg:
 		delegateKeys.Remove.SetEnabled(true)
-		// newItem := m.itemGenerator.next()
-		for i, sm := range msg {
-			// slog.Info("Topic", "t", sm)
-			// newItem := NewItemKafkaTopic(strconv.Itoa(i), sm)
+		kcl.SetItems(make([]list.Item, 0))
+		for i, sm := range m.GetKafkaTopics(m.SelectedKafkaCluster) {
 			newItem := NewItemKafkaTopic(sm, "")
 
 			insCmd := kcl.InsertItem(i, newItem)
@@ -278,9 +289,6 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 		statusCmd := kcl.NewStatusMessage(fmt.Sprintf("Added %d items", len(cmds)))
 		cmds = append(cmds, statusCmd)
 		return m, tea.Batch(cmds...)
-	}
-
-	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		// Don't match any of the keys below if we're actively filtering.
 		if kcl.FilterState() == list.Filtering {
@@ -342,20 +350,34 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 	return m, tea.Batch(cmds...)
 }
 
-type kafkaTopicsMsg []string
-type kafkaTopicErrMsg struct{ err error }
+type loadedKafkaTopicsMsg struct {
+	cluster string
+	topics  []string
+}
 
-func (e kafkaTopicErrMsg) Error() string { return e.err.Error() }
+type showKafkaTopicsMsg struct {
+}
+
+type loadingKafkaTopicErrMsg struct {
+	err error
+}
+
+func (e loadingKafkaTopicErrMsg) Error() string { return e.err.Error() }
 
 func (ktl *KafkaTopicList) loadTopics(cluster *contracts.KafkaCluster) tea.Cmd {
 	return func() tea.Msg {
-		// slog.Error("asd", "cluster", cluster)
 		topicNames, err := ktl.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
 		if err != nil {
 			slog.Error("Error during getting topic names", "topicNames", err)
+			return loadingKafkaTopicErrMsg{err: err}
 		}
-		ktl.model.SetTopicsForCluster(cluster.Title, topicNames)
 
-		return kafkaTopicsMsg(topicNames)
+		return loadedKafkaTopicsMsg{cluster: cluster.Title, topics: topicNames}
+	}
+}
+
+func (ktl *KafkaTopicList) showTopics() tea.Cmd {
+	return func() tea.Msg {
+		return showKafkaTopicsMsg{}
 	}
 }

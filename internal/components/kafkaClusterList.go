@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
+	"strconv"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -27,7 +28,7 @@ func (k *KafkaClusterList) GetStyles() windows.StylesKafkaCluster {
 }
 
 type ModelChangerKafkaCluster interface {
-	KafkaClusterChosenNextActivePane()
+	KafkaClusterChosenNextActivePane() tea.Cmd
 	SetChosenKafkaCluster(name string)
 }
 
@@ -39,20 +40,24 @@ type ufKafkaCluster struct {
 
 func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 	var title string
+	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.KafkaClusterChosenNextActivePane()
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
 				title = i.Title()
 				u.model.SetChosenKafkaCluster(title)
+				cmd := u.model.KafkaClusterChosenNextActivePane()
+				cmds = append(cmds, cmd)
 			} else {
 				return nil
 			}
 
-			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
+			// cmds = append(cmds, m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
+			cmds = append(cmds, m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render(strconv.Itoa(len(cmds)))))
+			return tea.Batch(cmds...)
 
 		case key.Matches(msg, u.keys.Remove):
 			index := m.Index()

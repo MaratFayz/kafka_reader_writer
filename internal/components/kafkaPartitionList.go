@@ -254,16 +254,6 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 	}
 
 	switch msg := msg.(type) {
-	case tea.BackgroundColorMsg:
-		// m.darkBG = msg.IsDark()
-		// m.updateListProperties()
-		fmt.Printf("%s", msg)
-		return m, nil
-
-	case tea.WindowSizeMsg:
-		// m.width, m.height = msg.Width, msg.Height
-		// m.updateListProperties()
-		return m, nil
 	case kafkaPartitionsMsg:
 		delegateKeys.Remove.SetEnabled(true)
 		// newItem := m.itemGenerator.next()

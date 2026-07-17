@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
+	"reflect"
 	"strings"
 	"sync/atomic"
 
@@ -362,10 +363,12 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 
 					cmds = append(cmds, readMessagesFromKafkaCmd)
 					return m, tea.Batch(cmds...)
-				case "esc":
+				case "esc", "a":
+					slog.Error("K2", "k", reflect.TypeOf(msg), "m", msg)
 					k.activeComponentReadTab = max(k.activeComponentReadTab-1, 0)
 					return m, tea.Batch(cmds...)
 				default:
+					slog.Error("K1", "k", reflect.TypeOf(msg), "m", msg)
 					var ok bool
 					m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
 
