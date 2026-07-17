@@ -244,23 +244,44 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 	keys := kt.ListKeys
 	delegateKeys := kt.DelegateKeys
 
-	if m.IsLoadPartitions == false {
-		// v := m.KafkaClusters[m.SelectedKafkaCluster]
-		// slog.Error("Toppp", "r", v, "r2", m.SelectedKafkaCluster, "a", m.KafkaClusters)
-
-		cmd := kt.loadPartitions(m.GetClusterByTitle(m.SelectedKafkaCluster), m.SelectedKafkaTopic)
-		cmds = append(cmds, cmd)
-		m.IsLoadPartitions = true
-	}
-
 	switch msg := msg.(type) {
-	case kafkaPartitionsMsg:
+	case initList:
+		mapTopics, ok := m.IsLoadPartitions[m.SelectedKafkaCluster]
+
+		if !ok {
+			m.IsLoadPartitions[m.SelectedKafkaCluster] = make(map[string]bool)
+			mapTopics = m.IsLoadPartitions[m.SelectedKafkaCluster]
+		}
+
+		arePartitionsLoadedForClusterTopic, ok := mapTopics[m.SelectedKafkaTopic]
+
+		if !ok {
+			mapTopics[m.SelectedKafkaTopic] = false
+			arePartitionsLoadedForClusterTopic = mapTopics[m.SelectedKafkaTopic]
+		}
+
+		if arePartitionsLoadedForClusterTopic == false {
+			cmd := kt.loadPartitions(m.GetClusterByTitle(m.SelectedKafkaCluster), m.SelectedKafkaTopic)
+			cmds = append(cmds, cmd)
+			m.IsLoadPartitions[m.SelectedKafkaCluster][m.SelectedKafkaTopic] = true
+		} else {
+			cmd := kt.showPartitions()
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+	case loadedKafkaPartitionsMsg:
+		kt.model.SetPartitionsForClusterAndTopic(msg.cluster, msg.topic, msg.partitions)
+		cmd := func() tea.Msg {
+			return showKafkaPartitionsMsg{}
+		}
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
+	case showKafkaPartitionsMsg:
 		delegateKeys.Remove.SetEnabled(true)
-		// newItem := m.itemGenerator.next()
-		for i, sm := range msg {
-			// slog.Info("Topic", "t", sm)
-			newItem := NewItemKafkaPartition(strconv.Itoa(i), strconv.Itoa(sm))
-			// newItem := NewItemKafkaTopic(sm, "")
+		kcl.SetItems(make([]list.Item, 0))
+		for i, sm := range m.GetKafkaPartitions(m.SelectedKafkaCluster, m.SelectedKafkaTopic) {
+			newItem := NewItemKafkaPartition(strconv.Itoa(sm), "")
 
 			insCmd := kcl.InsertItem(i, newItem)
 			cmds = append(cmds, insCmd)
@@ -332,18 +353,27 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 	return m, tea.Batch(cmds...)
 }
 
-type kafkaPartitionsMsg []int
+type loadedKafkaPartitionsMsg struct {
+	cluster    string
+	topic      string
+	partitions []int
+}
+
+type showKafkaPartitionsMsg struct{}
 type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
 func (ktl *KafkaPartitionList) loadPartitions(cluster *contracts.KafkaCluster, topicName string) tea.Cmd {
 	return func() tea.Msg {
-		// print(cluster)
 		partitions := ktl.kafkaPartitionsProvider.GetPartitionsByClusterNameAndTopic(topicName, cluster)
-		ktl.model.SetPartitionsForClusterAndTopic(cluster.Title, topicName, partitions)
-		// slog.Error("v", "v", partitions)
 
-		return kafkaPartitionsMsg(partitions)
+		return loadedKafkaPartitionsMsg{cluster: cluster.Title, topic: topicName, partitions: partitions}
+	}
+}
+
+func (ktl *KafkaPartitionList) showPartitions() tea.Cmd {
+	return func() tea.Msg {
+		return showKafkaPartitionsMsg{}
 	}
 }

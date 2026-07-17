@@ -25,7 +25,7 @@ type Model struct {
 	muKafkaPartitions sync.Mutex
 
 	SelectedKafkaPartition string
-	IsLoadPartitions       bool
+	IsLoadPartitions       map[string]map[string]bool
 	activePane             activePane
 
 	kafkaClusterList   KafkaClusterList
@@ -188,7 +188,7 @@ func InitialModel(ls LocalStorage) *Model {
 		kafkaTopics:      make(map[string][]string),
 		kafkaPartitions:  make(map[string]map[string][]int),
 		IsLoadTopics:     make(map[string]bool),
-		IsLoadPartitions: false,
+		IsLoadPartitions: make(map[string]map[string]bool),
 	}
 
 	return model
