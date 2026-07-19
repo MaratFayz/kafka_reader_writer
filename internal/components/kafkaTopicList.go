@@ -238,10 +238,6 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider 
 	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles, model, kafkaConnectorProvider}
 }
 
-type initList interface {
-	IsInitList() bool
-}
-
 func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 

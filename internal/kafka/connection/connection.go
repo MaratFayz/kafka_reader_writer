@@ -158,7 +158,6 @@ func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName st
 	t := k.partitions[cluster.Title]
 
 	t2 := t[topicName]
-	slog.Error("cccccccccccccccccccccccccccccc", "c", t2)
 
 	return t2
 }
@@ -288,7 +287,7 @@ func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafk
 	)
 
 	if err != nil {
-		log.Fatal("failed to write messages:", err)
+		log.Fatal("failed to write messages:", err) //                                                                                                                                                 │  │ qwee        OK     2026…2026/07/19 23:10:29 failed to write messages:[29] Topic Authorization Failed: the client is not authorized to access the requested topic                       │  │
 	}
 
 	return nil
@@ -337,7 +336,7 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 		return nil, fmt.Errorf("no messages in partition")
 	}
 
-	slog.Error("l", "l", lastOffset)
+	// slog.Error("l", "l", lastOffset)
 
 	// 3. Создаем Reader для чтения с найденного оффсета
 	// Важно: используем тот же контекст или новый для чтения
@@ -374,7 +373,7 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 
 		if err != nil {
 			//end of messages
-			// slog.Error("failed to read message:", "err", err)
+			// slog.Error("failed to read message:", "err", err) //                                                                           2026/07/18 15:58:33 ERROR failed to read message: err="fetching message: [29] Topic Authorization Failed: the client is not authorized to access the requested topic"a
 			break
 		}
 

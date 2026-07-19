@@ -142,8 +142,11 @@ func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
 	m.SetKafkaTopics(kafkaCluster, topics)
 }
 
-func (m *Model) KafkaPartitionChosenNextActivePane() {
+func (m *Model) KafkaPartitionChosenNextActivePane() tea.Cmd {
 	m.activePane = TABS_READ_WRITE
+	return func() tea.Msg {
+		return initList{}
+	}
 }
 
 func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
@@ -216,16 +219,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.activePane {
 			case TOPICS:
 				m.activePane = CLUSTERS
-				return m, nil
 			case PARTITIONS:
 				m.activePane = TOPICS
-				return m, nil
-
 			case TABS_READ_WRITE:
 				if m.kafkaReadWriteTabs.IsFocusOnTabs() {
 					m.activePane = PARTITIONS
 				}
-				return m, nil
 			}
 		}
 	}

@@ -34,7 +34,7 @@ type KafkaPartitionsProvider interface {
 }
 
 type ModelChangerKafkaPartition interface {
-	KafkaPartitionChosenNextActivePane()
+	KafkaPartitionChosenNextActivePane() tea.Cmd
 	SetChosenKafkaPartition(name string)
 	SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int)
 }
@@ -47,22 +47,22 @@ type ufKafkaPartition struct {
 
 func (u *ufKafkaPartition) updateFuncKafkaPartition(msg tea.Msg, m *list.Model) tea.Cmd {
 	var title string
+	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, u.keys.Choose):
-			u.model.KafkaPartitionChosenNextActivePane()
-
 			if i, ok := m.SelectedItem().(ItemKafkaPartition); ok {
 				title = i.Title()
 				u.model.SetChosenKafkaPartition(title)
+				cmd := u.model.KafkaPartitionChosenNextActivePane()
+				cmds = append(cmds, cmd)
 			} else {
 				return nil
 			}
-
-			return tea.Batch(m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
-
+			cmds = append(cmds, m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
+			return tea.Batch(cmds...)
 		case key.Matches(msg, u.keys.Remove):
 			index := m.Index()
 			m.RemoveItem(index)
