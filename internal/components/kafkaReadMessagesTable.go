@@ -7,11 +7,14 @@ import (
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	overlayv2 "github.com/madicen/bubble-overlay/v2"
 )
 
 type KafkaReadMessagesTableComponent struct {
-	table *table.Model
-	model *windows.Model
+	table               *table.Model
+	model               *windows.Model
+	stack               overlayv2.Stack
+	isOverlayWindowShow bool
 }
 
 var baseStyleKafkaReadMessagesTableComponent = lipgloss.NewStyle().
@@ -22,21 +25,24 @@ func (m *KafkaReadMessagesTableComponent) Init() tea.Cmd { return nil }
 
 func (m *KafkaReadMessagesTableComponent) Update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "esc":
-			if m.table.Focused() {
-				m.table.Blur()
-			} else {
-				m.table.Focus()
-			}
+		// case "esc":
+		// 	if m.table.Focused() {
+		// 		m.table.Blur()
+		// 	} else {
+		// 		m.table.Focus()
+		// 	}
 		case "q", "ctrl+c":
 			return model, tea.Quit
 		case "enter":
-			return model, tea.Batch(
-				tea.Printf("Let's go to %s!", m.table.SelectedRow()[2]),
-			)
+			// return model, tea.Batch(
+			// 	tea.Printf("Let's go to %s!", m.table.SelectedRow()[2]),
+			// )
+			sr := m.table.SelectedRow()
+			return model, contracts.CreateReadMessagesTableChosenRowEvent(sr[2], sr[3], sr[0], sr[1])
 		}
 	}
 	t, cmd := m.table.Update(msg)
@@ -45,7 +51,10 @@ func (m *KafkaReadMessagesTableComponent) Update(msg tea.Msg, model *windows.Mod
 }
 
 func (m *KafkaReadMessagesTableComponent) View() string {
+	// v := m.stack.CompositeView(baseStyleKafkaReadMessagesTableComponent.Render(m.table.View())+"\n  "+m.table.HelpView()+"\n", 60, 10)
+
 	return baseStyleKafkaReadMessagesTableComponent.Render(m.table.View()) + "\n  " + m.table.HelpView() + "\n"
+	// return v.Content
 	// return "asd"
 }
 
@@ -69,6 +78,7 @@ func CreateKafkaReadMessagesTable(m *windows.Model) *KafkaReadMessagesTableCompo
 	columns := []table.Column{
 		{Title: "Offset", Width: 10},
 		{Title: "Time", Width: 10},
+		{Title: "Header", Width: 10},
 		{Title: "Body", Width: 10},
 	}
 

@@ -28,6 +28,7 @@ type diContainer struct {
 	kafkaSendMessageTextArea        *components.KafkaSendMessageTextAreaComponent
 	kafkaSendMessageTableComponent  *components.KafkaSendMessageTableComponent
 	kafkaReadMessagesTableComponent *components.KafkaReadMessagesTableComponent
+	overlayWindowProvider           *components.OverlayWindowForMessagesProvider
 
 	muAppConfig                sync.Mutex
 	muDb                       sync.Mutex
@@ -41,6 +42,7 @@ type diContainer struct {
 	muKafkaReadWriteTabs       sync.Mutex
 	muKafkaSendMessageTextArea sync.Mutex
 	muKafkaReadMessagesTable   sync.Mutex
+	muOverlayWindowProvider    sync.Mutex
 }
 
 // newDIContainer создаёт новый пустой контейнер.
@@ -134,7 +136,7 @@ func (d *diContainer) FullModel() *windows.Model {
 
 		slog.Info("Init Full Model", "model", d.fullModel)
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
-			d.KafkaReadWriteTabsComponent())
+			d.KafkaReadWriteTabsComponent(), d.OverlayWindowProvider())
 		d.fullModel = fullModel
 	}
 
@@ -286,4 +288,20 @@ func (d *diContainer) KafkaReadMessagesTableComponent() *components.KafkaReadMes
 func (d *diContainer) KafkaSenderReader() *connection.KafkaConnectorProvider {
 	slog.Info("Init KafkaPartitionsProvider", "KafkaPartitionsProvider", d.kafkaConnector)
 	return d.createKafkaConnector()
+}
+
+func (d *diContainer) OverlayWindowProvider() *components.OverlayWindowForMessagesProvider {
+	if d.overlayWindowProvider == nil {
+		d.muOverlayWindowProvider.Lock()
+		defer d.muOverlayWindowProvider.Unlock()
+
+		if d.overlayWindowProvider != nil {
+			return d.overlayWindowProvider
+		}
+
+		slog.Info("Init overlayWindowProvider", "overlayWindowProvider", d.overlayWindowProvider)
+		d.overlayWindowProvider = components.CreateNewOverlayWindowForMessagesProvider()
+	}
+
+	return d.overlayWindowProvider
 }

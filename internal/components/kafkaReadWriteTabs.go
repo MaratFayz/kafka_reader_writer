@@ -234,7 +234,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 				case "down":
 					k.activeComponentWriteTab = min(k.activeComponentWriteTab+1, 3)
 					return m, tea.Batch(cmds...)
-				case "up":
+				case "esc":
 					k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
 					return m, tea.Batch(cmds...)
 				case "ctrl+s":
@@ -287,7 +287,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 					}
 					k.activeComponentWriteTab = TEXT_AREA_WRITE
 					return m, tea.Batch(cmds...)
-				case "up":
+				case "esc":
 					k.activeComponentWriteTab = max(k.activeComponentWriteTab-1, 0)
 					return m, tea.Batch(cmds...)
 				default:
@@ -383,6 +383,18 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 				}
 			}
 		}
+	case contracts.CloseOverlayWindow:
+		var ok bool
+		m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
+
+		m, ok = m2.(*windows.Model)
+		if !ok {
+			// Handle the case where m2 is not *windows.Model
+			log.Fatal("m2 is not a *windows.Model")
+		}
+
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -479,7 +491,7 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 		l = lipgloss.JoinVertical(lipgloss.Top, k.kafkaReadMessageTable.View(), "")
 	}
 
-	doc.WriteString(s.window.Width((lipgloss.Width(row) * 3)).Render(l))
+	doc.WriteString(s.window.Width((lipgloss.Width(row) * 4)).Render(l))
 
 	return s.doc.Render(doc.String())
 }

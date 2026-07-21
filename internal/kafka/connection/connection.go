@@ -33,19 +33,11 @@ func NewKafkaConnector() *KafkaConnectorProvider {
 }
 
 func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.KafkaCluster) ([]string, error) {
-	// defer func() {
-	// 	if recover() != nil {
-	// 		slog.Error("EEEEEEEEEEEEE")
-	// 	}
-	// }()
-
 	if v, ok := k.topics[cluster.Title]; ok == true {
 		slog.Error("in map have topics", "v", v)
 
 		return v, nil
 	}
-
-	// slog.Error("in map NOT topics")
 
 	var conn *kafka.Conn
 	if v, ok := k.connections[cluster.Title]; ok == true {
@@ -53,8 +45,6 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.Kafka
 
 		conn = v
 	}
-
-	// slog.Error("in map NOT connections")
 
 	conn, err := createConnection(cluster.Username, cluster.Password, cluster.TrustStorePath, cluster.Url)
 	if err != nil {
@@ -101,8 +91,6 @@ func (k *KafkaConnectorProvider) GetTopicsByClusterName(cluster *contracts.Kafka
 	}
 
 	k.partitions[cluster.Title] = partitionMap
-
-	// slog.Error("in kafka", "v", k)
 
 	return topicsList, nil
 }
@@ -162,109 +150,11 @@ func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName st
 	return t2
 }
 
-// type Kafka interface {
-// }
-
-// func sendMessage(config *Config, message string) {
-// 	// conn, err := dialer.DialLeader(context.Background(), "tcp", config.broker, config.topic, config.partition)
-// 	if err != nil {
-// 		log.Fatal("failed to dial leader:", err)
-// 	}
-
-// 	partitions, err := conn.ReadPartitions()
-// 	if err != nil {
-// 		panic(err.Error())
-// 	}
-
-// 	// Собираем имена топиков
-// 	m := map[string]struct{}{}
-// 	for _, p := range partitions {
-// 		m[p.Topic] = struct{}{}
-// 	}
-
-// 	// Выводим имена топиков
-// 	for k := range m {
-// 		fmt.Println(k)
-// 	}
-
-// 	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-// 	_, err = conn.WriteMessages(
-// 		kafka.Message{Topic: config.topic, Value: []byte(message)},
-// 		// kafka.Message{Value: []byte("two!")},
-// 		// kafka.Message{Value: []byte("three!")},
-// 	)
-// 	if err != nil {
-// 		log.Fatal("failed to write messages:", err)
-// 	}
-
-// 	if err := conn.Close(); err != nil {
-// 		log.Fatal("failed to close writer:", err)
-// 	}
-// }
-
 func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error {
-	// conn := k.connections[kafkaCluster.Title]
-	// conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	// // conn.
-	// _, err := conn.WriteMessages(
-	// 	kafka.Message{Topic: kafkaTopic, Value: []byte(textToSend)},
-	// 	// kafka.Message{Value: []byte("two!")},
-	// 	// kafka.Message{Value: []byte("three!")},
-	// )
-
-	// if err != nil {
-	// 	log.Fatal("failed to write messages:", err)
-	// }
-
-	// return nil
-
-	// slog.Error("NULL", "cluster", kafkaCluster)
-	// b, err := conn.Brokers()
-
-	// brokers := make([]string, 0, len(b))
-
-	// for _, br := range b {
-	// 	brokers = append(brokers, br.Host)
-	// }
-
-	// if err != nil {
-	// 	log.Fatal("failed to write messages:", err)
-	// }
-
-	// writer := kafka.NewWriter(kafka.WriterConfig{
-	// 	// Addr:     kafka.TCP(kafkaCluster.Url),
-	// 	// Username: kafkaCluster.Username,
-	// 	// Password: kafkaCluster.Password,
-	// 	// Balancer: &kafka.LeastBytes{},
-	// 	Dialer: createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url),
-	// 	Topic:  kafkaTopic,
-	// 	// Brokers: []string{kafkaCluster.Url},
-	// 	Brokers: brokers,
-	// })
 	dialer := createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url)
-	// writer := kafka.Writer{
-	// 	Addr: kafka.TCP(kafkaCluster.Url),
-	// 	// Dialer: createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url),
-	// 	Topic: kafkaTopic,
-	// 	// Brokers: []string{kafkaCluster.Url},
-	// 	// Brokers: brokers,
-	// 	Transport: &kafka.Transport{
-	// 		Dial: dialer.DialFunc, // Используем диалер для транспорта
-	// 		TLS:  dialer.TLS,
-	// 	},
-	// 	Logger: kafka.LoggerFunc(log.Printf),
-	// }
-
-	// defer writer.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
-	// err := writer.WriteMessages(ctx, kafka.Message{Value: []byte(textToSend)}, kafka.Message{Value: []byte(textToSend)})
-
-	// if err != nil {
-	// 	log.Fatalf("Error when write to kafka: %s %s % X", err, textToSend, []byte(textToSend))
-	// 	return err
-	// }
 
 	i, err := strconv.Atoi(kafkaPartition)
 
@@ -282,27 +172,14 @@ func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafk
 
 	_, err = conn.WriteMessages(
 		kafka.Message{Topic: kafkaTopic, Value: []byte(textToSend)},
-		// kafka.Message{Value: []byte("two!")},
-		// kafka.Message{Value: []byte("three!")},
 	)
 
 	if err != nil {
-		log.Fatal("failed to write messages:", err) //                                                                                                                                                 │  │ qwee        OK     2026…2026/07/19 23:10:29 failed to write messages:[29] Topic Authorization Failed: the client is not authorized to access the requested topic                       │  │
+		log.Fatal("failed to write messages:", err) //         2026…2026/07/19 23:10:29 failed to write messages:[29] Topic Authorization Failed: the client is not authorized to access the requested topic                       │  │
 	}
 
 	return nil
 }
-
-// func (k *KafkaConnectorProvider) Close() error {
-// 	var err error
-// 	for _, c := range k.connections {
-// 		err = c.Close()
-// 	}
-
-// 	if err != nil {
-
-// 	}
-// }
 
 func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, numberOfReadMessages int) ([]*contracts.ReadMessagesRow, error) {
 	dialer := createDialer(kafkaCluster.Username, kafkaCluster.Password, kafkaCluster.TrustStorePath, kafkaCluster.Url)
@@ -336,8 +213,6 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 		return nil, fmt.Errorf("no messages in partition")
 	}
 
-	// slog.Error("l", "l", lastOffset)
-
 	// 3. Создаем Reader для чтения с найденного оффсета
 	// Важно: используем тот же контекст или новый для чтения
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -358,56 +233,17 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 	readCtx, readCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer readCancel()
 
-	// msg, err := reader.ReadMessage(readCtx)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to read message: %w", err)
-	// }
-
-	// log.Fatal("offset", "offset", offset, "w", w)
-
 	res := make([]*contracts.ReadMessagesRow, 0)
 
 	for range numberOfReadMessages {
-		// message, err := conn.ReadMessage(2147483566)
 		message, err := reader.ReadMessage(readCtx)
 
 		if err != nil {
-			//end of messages
-			// slog.Error("failed to read message:", "err", err) //                                                                           2026/07/18 15:58:33 ERROR failed to read message: err="fetching message: [29] Topic Authorization Failed: the client is not authorized to access the requested topic"a
 			break
 		}
 
-		// slog.Error("m", "mm", string(message.Value))
-
-		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.String(), string(message.Value)}})
+		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.String(), string(message.Key), string(message.Value)}})
 	}
 
-	// batch := conn.ReadBatch(1000, 2147483566)
-	// defer batch.Close()
-	// if err := batch.Close(); err != nil {
-	// 	slog.Error("Batch is failed when close", "err", err)
-	// 	return nil, err
-	// }
-
-	// if err := batch.Err(); err != nil {
-	// 	log.Fatal("Batch is failed", "err", err)
-	// 	return nil, err
-	// }
-
-	// for range 50 {
-	// 	message, err := batch.ReadMessage()
-
-	// 	if err != nil {
-	// 		log.Fatal("failed to read message:", err)
-	// 	}
-
-	// 	m := string(message.Value)
-
-	// 	res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.GoString(), m}})
-	// }
-
-	// slog.Error("Mes read kafka------------------------>", "mes", res)
-
-	// res = append(res, &contracts.ReadMessagesRow{Row: []string{"1", "2", "3"}})
 	return res, nil
 }

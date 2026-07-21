@@ -1,12 +1,19 @@
 package windows
 
 import (
+	"bytes"
+	"fmt"
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
+	"marat/fayz/kafka_reader_writer/internal/debug"
+	"strconv"
 	"sync"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	overlay "github.com/madicen/bubble-overlay"
+	overlayv2 "github.com/madicen/bubble-overlay/v2"
 )
 
 type Model struct {
@@ -32,6 +39,11 @@ type Model struct {
 	kafkaTopicList     KafkaTopicList
 	kafkaPartitionList KafkaPartitionList
 	kafkaReadWriteTabs KafkaReadWriteTabsComponent
+
+	stack               overlayv2.Stack
+	isOverlayWindowShow bool
+
+	overlayWindowProvider OverlayWindowProvider
 }
 
 type activePane int
@@ -41,6 +53,7 @@ const (
 	TOPICS
 	PARTITIONS
 	TABS_READ_WRITE
+	TABS_READ_WRITE_OVERLAY_WINDOW
 )
 
 func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
@@ -107,6 +120,10 @@ type StylesKafkaCluster interface {
 	GetApp() lipgloss.Style
 	GetTitle() lipgloss.Style
 	GetStatusMessage() lipgloss.Style
+}
+
+type OverlayWindowProvider interface {
+	ProvideNew(body string, header string, offset string, datetime string) tea.Model
 }
 
 func (m *Model) KafkaClusterChosenNextActivePane() tea.Cmd {
@@ -198,11 +215,12 @@ func InitialModel(ls LocalStorage) *Model {
 }
 
 func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList,
-	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent) *Model {
+	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent, overlayWindowProvider OverlayWindowProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
 	model.kafkaReadWriteTabs = kafkaReadWriteTabsComponent
+	model.overlayWindowProvider = overlayWindowProvider
 
 	return model
 }
@@ -213,20 +231,52 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case contracts.CloseOverlayWindow:
+		slog.Error("B", "m", "CloseOverlayWindow", "depth", m.stack.Depth())
+		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stack.Depth()))
+
+		var c tea.Cmd
+
+		if m.stack.Depth() > 0 {
+			_, c = m.stack.Pop()
+		}
+
+		if m.stack.Depth() == 0 {
+			debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth ZERO = " + strconv.Itoa(m.stack.Depth()))
+			m.activePane = TABS_READ_WRITE
+		}
+
+		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth after = " + strconv.Itoa(m.stack.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
 	case tea.KeyPressMsg:
 		switch keypress := msg.String(); keypress {
 		case "esc":
 			switch m.activePane {
 			case TOPICS:
 				m.activePane = CLUSTERS
+				return m, nil
 			case PARTITIONS:
 				m.activePane = TOPICS
+				return m, nil
 			case TABS_READ_WRITE:
 				if m.kafkaReadWriteTabs.IsFocusOnTabs() {
 					m.activePane = PARTITIONS
+					return m, nil
 				}
+			case TABS_READ_WRITE_OVERLAY_WINDOW:
 			}
 		}
+
+	case contracts.ReadMessagesTableChosenRow:
+		debug.WriteDebugFile("in main: event contracts.ReadMessagesTableChosenRow")
+		m.activePane = TABS_READ_WRITE_OVERLAY_WINDOW
+		return m, m.stack.Push(m.overlayWindowProvider.ProvideNew(msg.Body, msg.Header, msg.Offset, msg.Datetime), overlay.OverlayConfig{
+			Placement:           overlay.Center(),
+			DimOpacity:          0.35,
+			CloseOnEscape:       false,
+			CloseOnClickOutside: false,
+		})
 	}
 
 	switch m.activePane {
@@ -240,7 +290,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := m.kafkaPartitionList.Update(msg, m)
 		return m, tea.Batch(cmd)
 	case TABS_READ_WRITE:
+		debug.WriteDebugFile("in main: TABS_READ_WRITE")
 		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
+		return m, tea.Batch(cmd)
+	case TABS_READ_WRITE_OVERLAY_WINDOW:
+		var buf bytes.Buffer
+		fmt.Fprintf(&buf, "in main: TABS_READ_WRITE_OVERLAY_WINDOW: event %v", msg)
+		debug.WriteDebugFile(buf.String())
+
+		cmd := m.stack.Update(msg)
 		return m, tea.Batch(cmd)
 	}
 
@@ -254,7 +312,7 @@ func (m *Model) View() tea.View {
 	// Update list size.
 	// h, _ := styles.GetApp().GetFrameSize()
 	// kcl.SetSize(100-h, 30)
-	kcl.SetSize(50, 30)
+	kcl.SetSize(30, 30)
 	// h, v := styles.GetApp().GetFrameSize()
 	// kcl.SetSize(100-h, 100-v)
 
@@ -291,8 +349,16 @@ func (m *Model) View() tea.View {
 	// Update the model and list styles.
 	kpl.Styles.Title = stylesKpl.GetTitle()
 
-	v3 := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View(), kpl.View(), m.kafkaReadWriteTabs.View()))
-	v3.AltScreen = true
+	v3 := lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View(), kpl.View(), m.kafkaReadWriteTabs.View())
 
-	return v3
+	if m.stack.Depth() > 0 {
+		v4 := m.stack.CompositeView(v3, 120, 30)
+		v4.AltScreen = true
+		return v4
+	} else {
+		vv := tea.NewView(v3)
+		vv.AltScreen = true
+
+		return vv
+	}
 }
