@@ -349,7 +349,27 @@ func (m *Model) View() tea.View {
 	// Update the model and list styles.
 	kpl.Styles.Title = stylesKpl.GetTitle()
 
-	v3 := lipgloss.JoinHorizontal(lipgloss.Left, kcl.View(), ktl.View(), kpl.View(), m.kafkaReadWriteTabs.View())
+	s := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("63"))
+
+	kclString := kcl.View()
+	ktlString := ktl.View()
+	kplString := kpl.View()
+	kafkaReadWriteTabsString := m.kafkaReadWriteTabs.View()
+
+	switch m.activePane {
+	case CLUSTERS:
+		kclString = s.Render(kclString)
+	case TOPICS:
+		ktlString = s.Render(ktlString)
+	case PARTITIONS:
+		kplString = s.Render(kplString)
+	case TABS_READ_WRITE, TABS_READ_WRITE_OVERLAY_WINDOW:
+		kafkaReadWriteTabsString = s.Render(kafkaReadWriteTabsString)
+	}
+
+	v3 := lipgloss.JoinHorizontal(lipgloss.Left, kclString, ktlString, kplString, kafkaReadWriteTabsString)
 
 	if m.stack.Depth() > 0 {
 		v4 := m.stack.CompositeView(v3, 120, 30)
