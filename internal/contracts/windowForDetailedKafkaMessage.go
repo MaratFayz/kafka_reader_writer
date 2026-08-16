@@ -2,7 +2,7 @@ package contracts
 
 import tea "charm.land/bubbletea/v2"
 
-type CloseOverlayWindow struct{}
+type CloseWindowForDetailedReadMessage struct{}
 
 type ReadMessagesTableChosenRow struct {
 	Header   string

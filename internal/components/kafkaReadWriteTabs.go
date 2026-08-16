@@ -394,7 +394,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 				}
 			}
 		}
-	case contracts.CloseOverlayWindow:
+	case contracts.CloseWindowForDetailedReadMessage:
 		var ok bool
 		m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
 

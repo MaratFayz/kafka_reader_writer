@@ -32,7 +32,7 @@ func (m *OverlayWindowForDeleteNewServer) Update(msg tea.Msg) (tea.Model, tea.Cm
 		debug.WriteDebugFile(buf.String())
 
 		if msg.String() == "esc" {
-			return m, func() tea.Msg { return contracts.CloseOverlayWindow{} }
+			return m, func() tea.Msg { return contracts.CloseWindowForDetailedReadMessage{} }
 		}
 	}
 	return m, nil

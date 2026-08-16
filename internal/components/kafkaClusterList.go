@@ -1,8 +1,8 @@
 package components
 
 import (
-	"fmt"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
+	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -264,19 +264,11 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 	delegateKeys := kc.DelegateKeys
 
 	switch msg := msg.(type) {
-	case tea.BackgroundColorMsg:
-		// m.darkBG = msg.IsDark()
-		// m.updateListProperties()
-		fmt.Printf("%s", msg)
-		return m, nil
 
-	case tea.WindowSizeMsg:
-		// m.width, m.height = msg.Width, msg.Height
-		// m.updateListProperties()
-		return m, nil
-	}
+	case contracts.AskForHelp:
+		debug.WriteDebugFile("in kafkaClusterList: event contracts.AskForHelp")
+		return m, contracts.CreateHelpMessageEvent("sdfsdfsdf")
 
-	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		// Don't match any of the keys below if we're actively filtering.
 		if kcl.FilterState() == list.Filtering {

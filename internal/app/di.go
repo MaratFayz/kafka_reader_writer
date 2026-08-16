@@ -143,7 +143,8 @@ func (d *diContainer) FullModel() *windows.Model {
 
 		slog.Info("Init Full Model", "model", d.fullModel)
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
-			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider())
+			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider(),
+			d.OverlayWindowForHelpProvider())
 		d.fullModel = fullModel
 	}
 

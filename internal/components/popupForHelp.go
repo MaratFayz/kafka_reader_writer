@@ -12,10 +12,7 @@ import (
 )
 
 type OverlayWindowForHelp struct {
-	key      string
-	body     string
-	offset   string
-	datetime string
+	Text string
 }
 
 func (*OverlayWindowForHelp) Init() tea.Cmd { return nil }
@@ -32,7 +29,7 @@ func (m *OverlayWindowForHelp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debug.WriteDebugFile(buf.String())
 
 		if msg.String() == "esc" {
-			return m, func() tea.Msg { return contracts.CloseOverlayWindow{} }
+			return m, func() tea.Msg { return contracts.CloseWindowForHelp{} }
 		}
 	}
 	return m, nil
@@ -49,10 +46,10 @@ func (o *OverlayWindowForHelp) View() tea.View {
 	return tea.NewView(
 		lipgloss.JoinVertical(
 			lipgloss.Center,
-			lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
-			lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
-			lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
-			lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
+			// lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
+			// lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
+			// lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
+			lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.Text))))
 }
 
 type OverlayWindowForHelpProvider struct {
@@ -62,6 +59,6 @@ func CreateNewOverlayWindowForHelpProvider() *OverlayWindowForHelpProvider {
 	return &OverlayWindowForHelpProvider{}
 }
 
-func (o *OverlayWindowForAppendNewServerProvider) ProvideNewOverlayWindowForHelp(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForHelp{key: key, body: body, offset: offset, datetime: datetime}
+func (o *OverlayWindowForHelpProvider) ProvideNewOverlayWindowForHelp(text string) tea.Model {
+	return &OverlayWindowForHelp{Text: text}
 }

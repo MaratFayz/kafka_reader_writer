@@ -39,10 +39,13 @@ type Model struct {
 	kafkaPartitionList KafkaPartitionList
 	kafkaReadWriteTabs KafkaReadWriteTabsComponent
 
-	stack               overlayv2.Stack
-	isOverlayWindowShow bool
+	stack                                    overlayv2.Stack
+	isWindowForDetailedReadKafkaMessageShown bool
 
 	overlayWindowProvider OverlayWindowProvider
+
+	isHelpWindowNeedToOpen bool
+	helpWindow             HelpWindowProvider
 }
 
 type activePane int
@@ -52,7 +55,11 @@ const (
 	TOPICS
 	PARTITIONS
 	TABS_READ_WRITE
-	TABS_READ_WRITE_OVERLAY_WINDOW
+	TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE
+	CLUSTERS_HELP_WINDOW
+	TOPICS_HELP_WINDOW
+	PARTITIONS_HELP_WINDOW
+	TABS_READ_WRITE_HELP_WINDOW
 )
 
 func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
@@ -123,6 +130,10 @@ type StylesKafkaCluster interface {
 
 type OverlayWindowProvider interface {
 	ProvideNew(body string, header string, offset string, datetime string) tea.Model
+}
+
+type HelpWindowProvider interface {
+	ProvideNewOverlayWindowForHelp(text string) tea.Model
 }
 
 func (m *Model) KafkaClusterChosenNextActivePane() tea.Cmd {
@@ -214,23 +225,33 @@ func InitialModel(ls LocalStorage) *Model {
 }
 
 func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList,
-	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent, overlayWindowProvider OverlayWindowProvider) *Model {
+	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent,
+	overlayWindowProvider OverlayWindowProvider, helpWindow HelpWindowProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
 	model.kafkaReadWriteTabs = kafkaReadWriteTabsComponent
 	model.overlayWindowProvider = overlayWindowProvider
+	model.helpWindow = helpWindow
 
 	return model
 }
 
 func (m *Model) Init() tea.Cmd {
-	return nil
+	return tea.RequestBackgroundColor
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case contracts.CloseOverlayWindow:
+	case tea.BackgroundColorMsg:
+		debug.WriteDebugFile("in main: event BackgroundColorMsg = " + msg.String())
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		debug.WriteDebugFile("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
+		return m, nil
+
+	case contracts.CloseWindowForDetailedReadMessage:
 		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stack.Depth()))
 
 		var c tea.Cmd
@@ -248,6 +269,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, c
 	case tea.KeyPressMsg:
+		debug.WriteDebugFile("in main: нажата кнопка " + msg.Keystroke())
+
 		switch keypress := msg.String(); keypress {
 		case "esc":
 			switch m.activePane {
@@ -262,13 +285,72 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.activePane = PARTITIONS
 					return m, nil
 				}
-			case TABS_READ_WRITE_OVERLAY_WINDOW:
+			case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE:
+			}
+		case "?":
+			m.isHelpWindowNeedToOpen = true
+			debug.WriteDebugFile("in main: выпущено событие CreateAskForHelpEvent")
+			return m, contracts.CreateAskForHelpEvent()
+		}
+
+	case contracts.HelpMessage:
+
+		if m.isHelpWindowNeedToOpen == false {
+			return m, nil
+		}
+
+		switch m.activePane {
+		case CLUSTERS:
+			m.activePane = CLUSTERS_HELP_WINDOW
+		case TOPICS:
+			m.activePane = PARTITIONS_HELP_WINDOW
+		case PARTITIONS:
+			m.activePane = PARTITIONS_HELP_WINDOW
+		case TABS_READ_WRITE:
+			m.activePane = TABS_READ_WRITE_HELP_WINDOW
+		}
+
+		debug.WriteDebugFile("in main: event contracts.HelpMessage, value = " + msg.Text + ", создание окна помощи, активная панель теперь " +
+			strconv.Itoa(int(m.activePane)))
+
+		return m, m.stack.Push(m.helpWindow.ProvideNewOverlayWindowForHelp(msg.Text), overlay.OverlayConfig{
+			Placement:           overlay.Center(),
+			DimOpacity:          0.35,
+			CloseOnEscape:       false,
+			CloseOnClickOutside: false,
+		})
+	case contracts.CloseWindowForHelp:
+		m.isHelpWindowNeedToOpen = false
+		debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth before = " + strconv.Itoa(m.stack.Depth()))
+
+		var c tea.Cmd
+
+		if m.stack.Depth() > 0 {
+			_, c = m.stack.Pop()
+		}
+
+		if m.stack.Depth() == 0 {
+			debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth ZERO = " + strconv.Itoa(m.stack.Depth()))
+
+			switch m.activePane {
+			case CLUSTERS_HELP_WINDOW:
+				m.activePane = CLUSTERS
+			case TOPICS_HELP_WINDOW:
+				m.activePane = TOPICS
+			case PARTITIONS_HELP_WINDOW:
+				m.activePane = PARTITIONS
+			case TABS_READ_WRITE_HELP_WINDOW:
+				m.activePane = TABS_READ_WRITE
 			}
 		}
 
+		debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth after = " + strconv.Itoa(m.stack.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
+
 	case contracts.ReadMessagesTableChosenRow:
 		debug.WriteDebugFile("in main: event contracts.ReadMessagesTableChosenRow")
-		m.activePane = TABS_READ_WRITE_OVERLAY_WINDOW
+		m.activePane = TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE
 		return m, m.stack.Push(m.overlayWindowProvider.ProvideNew(msg.Body, msg.Header, msg.Offset, msg.Datetime), overlay.OverlayConfig{
 			Placement:           overlay.Center(),
 			DimOpacity:          0.35,
@@ -291,9 +373,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debug.WriteDebugFile("in main: TABS_READ_WRITE")
 		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
 		return m, tea.Batch(cmd)
-	case TABS_READ_WRITE_OVERLAY_WINDOW:
+	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW:
 		var buf bytes.Buffer
-		fmt.Fprintf(&buf, "in main: TABS_READ_WRITE_OVERLAY_WINDOW: event %v", msg)
+		fmt.Fprintf(&buf, "in main: активная панель %v: event %v", m.activePane, msg)
 		debug.WriteDebugFile(buf.String())
 
 		cmd := m.stack.Update(msg)
@@ -357,13 +439,13 @@ func (m *Model) View() tea.View {
 	kafkaReadWriteTabsString := m.kafkaReadWriteTabs.View()
 
 	switch m.activePane {
-	case CLUSTERS:
+	case CLUSTERS, CLUSTERS_HELP_WINDOW:
 		kclString = s.Render(kclString)
-	case TOPICS:
+	case TOPICS, TOPICS_HELP_WINDOW:
 		ktlString = s.Render(ktlString)
-	case PARTITIONS:
+	case PARTITIONS, PARTITIONS_HELP_WINDOW:
 		kplString = s.Render(kplString)
-	case TABS_READ_WRITE, TABS_READ_WRITE_OVERLAY_WINDOW:
+	case TABS_READ_WRITE, TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, TABS_READ_WRITE_HELP_WINDOW:
 		kafkaReadWriteTabsString = s.Render(kafkaReadWriteTabsString)
 	}
 
