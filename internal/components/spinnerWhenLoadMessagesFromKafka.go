@@ -58,7 +58,7 @@ func (s *SpinnerWhenLoadMessagesFromKafkaComponent) update(msg tea.Msg, m *windo
 
 func (s *SpinnerWhenLoadMessagesFromKafkaComponent) View() string {
 	var viewStringOfSpinner string
-	viewStringOfSpinner += fmt.Sprintf("\n %s%s%s\n\n", s.spinner.View(), textStyle("Spinning..."))
+	viewStringOfSpinner += fmt.Sprintf("\n %s%s\n\n", s.spinner.View(), textStyle("Spinning..."))
 	viewStringOfSpinner += helpStyle("h/l, ←/→: change spinner • q: exit\n")
 	return viewStringOfSpinner
 }

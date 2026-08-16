@@ -46,14 +46,20 @@ func (o *OverlayWindowForHelp) View() tea.View {
 		BorderForeground(lipgloss.Color("63")).
 		Align(lipgloss.Center, lipgloss.Center)
 
-	return tea.NewView(lipgloss.JoinVertical(lipgloss.Center, lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)), lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)), lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)), lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
+	return tea.NewView(
+		lipgloss.JoinVertical(
+			lipgloss.Center,
+			lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
+			lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
+			lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
+			lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
 }
 
 type OverlayWindowForHelpProvider struct {
 }
 
-func CreateNewOverlayWindowForHelpProvider() *OverlayWindowForAppendNewServerProvider {
-	return &OverlayWindowForAppendNewServerProvider{}
+func CreateNewOverlayWindowForHelpProvider() *OverlayWindowForHelpProvider {
+	return &OverlayWindowForHelpProvider{}
 }
 
 func (o *OverlayWindowForAppendNewServerProvider) ProvideNewOverlayWindowForHelp(body string, key string, offset string, datetime string) tea.Model {

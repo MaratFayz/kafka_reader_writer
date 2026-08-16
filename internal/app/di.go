@@ -15,36 +15,42 @@ import (
 )
 
 type diContainer struct {
-	appConfig                                 *config.Config
-	db                                        *database.Db
-	localStorage                              *localstorage.LocalStorage
-	model                                     *windows.Model
-	fullModel                                 *windows.Model
-	kafkaClusterList                          *components.KafkaClusterList
-	kafkaTopicList                            *components.KafkaTopicList
-	kafkaConnector                            *connection.KafkaConnectorProvider
-	kafkaPartitionList                        *components.KafkaPartitionList
-	kafkaReadWriteTabs                        *components.KafkaReadWriteTabsComponent
-	kafkaSendMessageTextArea                  *components.KafkaSendMessageTextAreaComponent
-	kafkaSendMessageTableComponent            *components.KafkaSendMessageTableComponent
-	kafkaReadMessagesTableComponent           *components.KafkaReadMessagesTableComponent
-	overlayWindowProvider                     *components.OverlayWindowForMessagesProvider
-	spinnerWhenLoadMessagesFromKafkaComponent *components.SpinnerWhenLoadMessagesFromKafkaComponent
+	appConfig                                  *config.Config
+	db                                         *database.Db
+	localStorage                               *localstorage.LocalStorage
+	model                                      *windows.Model
+	fullModel                                  *windows.Model
+	kafkaClusterList                           *components.KafkaClusterList
+	kafkaTopicList                             *components.KafkaTopicList
+	kafkaConnector                             *connection.KafkaConnectorProvider
+	kafkaPartitionList                         *components.KafkaPartitionList
+	kafkaReadWriteTabs                         *components.KafkaReadWriteTabsComponent
+	kafkaSendMessageTextArea                   *components.KafkaSendMessageTextAreaComponent
+	kafkaSendMessageTableComponent             *components.KafkaSendMessageTableComponent
+	kafkaReadMessagesTableComponent            *components.KafkaReadMessagesTableComponent
+	overlayForKafkaReadDetailedMessageProvider *components.OverlayWindowForKafkaReadDetailedMessageProvider
+	spinnerWhenLoadMessagesFromKafkaComponent  *components.SpinnerWhenLoadMessagesFromKafkaComponent
+	overlayWindowForAppendNewServerProvider    *components.OverlayWindowForAppendNewServerProvider
+	overlayWindowForHelpProvider               *components.OverlayWindowForHelpProvider
+	overlayWindowForDeleteNewServerProvider    *components.OverlayWindowForDeleteNewServerProvider
 
-	muAppConfig                                 sync.Mutex
-	muDb                                        sync.Mutex
-	muLocalStorage                              sync.Mutex
-	muModel                                     sync.Mutex
-	muFullModel                                 sync.Mutex
-	muKafkaClusterList                          sync.Mutex
-	muKafkaTopicList                            sync.Mutex
-	muKafkaConnector                            sync.Mutex
-	muKafkaPartitionList                        sync.Mutex
-	muKafkaReadWriteTabs                        sync.Mutex
-	muKafkaSendMessageTextArea                  sync.Mutex
-	muKafkaReadMessagesTable                    sync.Mutex
-	muOverlayWindowProvider                     sync.Mutex
-	muSpinnerWhenLoadMessagesFromKafkaComponent sync.Mutex
+	muAppConfig                                  sync.Mutex
+	muDb                                         sync.Mutex
+	muLocalStorage                               sync.Mutex
+	muModel                                      sync.Mutex
+	muFullModel                                  sync.Mutex
+	muKafkaClusterList                           sync.Mutex
+	muKafkaTopicList                             sync.Mutex
+	muKafkaConnector                             sync.Mutex
+	muKafkaPartitionList                         sync.Mutex
+	muKafkaReadWriteTabs                         sync.Mutex
+	muKafkaSendMessageTextArea                   sync.Mutex
+	muKafkaReadMessagesTable                     sync.Mutex
+	muOverlayForKafkaReadDetailedMessageProvider sync.Mutex
+	muSpinnerWhenLoadMessagesFromKafkaComponent  sync.Mutex
+	muOverlayWindowForAppendNewServerProvider    sync.Mutex
+	muOverlayWindowForHelpProvider               sync.Mutex
+	muOverlayWindowForDeleteNewServerProvider    sync.Mutex
 }
 
 func newDIContainer() *diContainer {
@@ -137,7 +143,7 @@ func (d *diContainer) FullModel() *windows.Model {
 
 		slog.Info("Init Full Model", "model", d.fullModel)
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
-			d.KafkaReadWriteTabsComponent(), d.OverlayWindowProvider())
+			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider())
 		d.fullModel = fullModel
 	}
 
@@ -292,20 +298,20 @@ func (d *diContainer) KafkaSenderReader() *connection.KafkaConnectorProvider {
 	return d.createKafkaConnector()
 }
 
-func (d *diContainer) OverlayWindowProvider() *components.OverlayWindowForMessagesProvider {
-	if d.overlayWindowProvider == nil {
-		d.muOverlayWindowProvider.Lock()
-		defer d.muOverlayWindowProvider.Unlock()
+func (d *diContainer) OverlayWindowForKafkaReadDetailedMessageProvider() *components.OverlayWindowForKafkaReadDetailedMessageProvider {
+	if d.overlayForKafkaReadDetailedMessageProvider == nil {
+		d.muOverlayForKafkaReadDetailedMessageProvider.Lock()
+		defer d.muOverlayForKafkaReadDetailedMessageProvider.Unlock()
 
-		if d.overlayWindowProvider != nil {
-			return d.overlayWindowProvider
+		if d.overlayForKafkaReadDetailedMessageProvider != nil {
+			return d.overlayForKafkaReadDetailedMessageProvider
 		}
 
-		slog.Info("Init overlayWindowProvider", "overlayWindowProvider", d.overlayWindowProvider)
-		d.overlayWindowProvider = components.CreateNewOverlayWindowForMessagesProvider()
+		slog.Info("Init overlayForKafkaReadDetailedMessageProvider", "overlayForKafkaReadDetailedMessageProvider", d.overlayForKafkaReadDetailedMessageProvider)
+		d.overlayForKafkaReadDetailedMessageProvider = components.CreateNewWindowForKafkaReadDetailedMessageProvider()
 	}
 
-	return d.overlayWindowProvider
+	return d.overlayForKafkaReadDetailedMessageProvider
 }
 
 func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *components.SpinnerWhenLoadMessagesFromKafkaComponent {
@@ -322,4 +328,52 @@ func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *components.Sp
 	}
 
 	return d.spinnerWhenLoadMessagesFromKafkaComponent
+}
+
+func (d *diContainer) OverlayWindowForAppendNewServerProvider() *components.OverlayWindowForAppendNewServerProvider {
+	if d.overlayWindowForAppendNewServerProvider == nil {
+		d.muOverlayWindowForAppendNewServerProvider.Lock()
+		defer d.muOverlayWindowForAppendNewServerProvider.Unlock()
+
+		if d.overlayWindowForAppendNewServerProvider != nil {
+			return d.overlayWindowForAppendNewServerProvider
+		}
+
+		slog.Info("Init overlayWindowForAppendNewServerProvider", "overlayWindowForAppendNewServerProvider", d.overlayWindowForAppendNewServerProvider)
+		d.overlayWindowForAppendNewServerProvider = components.CreateNewOverlayWindowForAppendNewServerProvider()
+	}
+
+	return d.overlayWindowForAppendNewServerProvider
+}
+
+func (d *diContainer) OverlayWindowForDeleteNewServerProvider() *components.OverlayWindowForDeleteNewServerProvider {
+	if d.overlayWindowForDeleteNewServerProvider == nil {
+		d.muOverlayWindowForDeleteNewServerProvider.Lock()
+		defer d.muOverlayWindowForDeleteNewServerProvider.Unlock()
+
+		if d.overlayWindowForDeleteNewServerProvider != nil {
+			return d.overlayWindowForDeleteNewServerProvider
+		}
+
+		slog.Info("Init overlayWindowForDeleteNewServerProvider", "overlayWindowForDeleteNewServerProvider", d.overlayWindowForDeleteNewServerProvider)
+		d.overlayWindowForDeleteNewServerProvider = components.CreateNewOverlayWindowForDeleteNewServerProvider()
+	}
+
+	return d.overlayWindowForDeleteNewServerProvider
+}
+
+func (d *diContainer) OverlayWindowForHelpProvider() *components.OverlayWindowForHelpProvider {
+	if d.overlayWindowForHelpProvider == nil {
+		d.muOverlayWindowForHelpProvider.Lock()
+		defer d.muOverlayWindowForHelpProvider.Unlock()
+
+		if d.overlayWindowForHelpProvider != nil {
+			return d.overlayWindowForHelpProvider
+		}
+
+		slog.Info("Init overlayWindowForHelpProvider", "overlayWindowForHelpProvider", d.overlayWindowForHelpProvider)
+		d.overlayWindowForHelpProvider = components.CreateNewOverlayWindowForHelpProvider()
+	}
+
+	return d.overlayWindowForHelpProvider
 }
