@@ -15,37 +15,38 @@ import (
 )
 
 type diContainer struct {
-	appConfig                       *config.Config
-	db                              *database.Db
-	localStorage                    *localstorage.LocalStorage
-	model                           *windows.Model
-	fullModel                       *windows.Model
-	kafkaClusterList                *components.KafkaClusterList
-	kafkaTopicList                  *components.KafkaTopicList
-	kafkaConnector                  *connection.KafkaConnectorProvider
-	kafkaPartitionList              *components.KafkaPartitionList
-	kafkaReadWriteTabs              *components.KafkaReadWriteTabsComponent
-	kafkaSendMessageTextArea        *components.KafkaSendMessageTextAreaComponent
-	kafkaSendMessageTableComponent  *components.KafkaSendMessageTableComponent
-	kafkaReadMessagesTableComponent *components.KafkaReadMessagesTableComponent
-	overlayWindowProvider           *components.OverlayWindowForMessagesProvider
+	appConfig                                 *config.Config
+	db                                        *database.Db
+	localStorage                              *localstorage.LocalStorage
+	model                                     *windows.Model
+	fullModel                                 *windows.Model
+	kafkaClusterList                          *components.KafkaClusterList
+	kafkaTopicList                            *components.KafkaTopicList
+	kafkaConnector                            *connection.KafkaConnectorProvider
+	kafkaPartitionList                        *components.KafkaPartitionList
+	kafkaReadWriteTabs                        *components.KafkaReadWriteTabsComponent
+	kafkaSendMessageTextArea                  *components.KafkaSendMessageTextAreaComponent
+	kafkaSendMessageTableComponent            *components.KafkaSendMessageTableComponent
+	kafkaReadMessagesTableComponent           *components.KafkaReadMessagesTableComponent
+	overlayWindowProvider                     *components.OverlayWindowForMessagesProvider
+	spinnerWhenLoadMessagesFromKafkaComponent *components.SpinnerWhenLoadMessagesFromKafkaComponent
 
-	muAppConfig                sync.Mutex
-	muDb                       sync.Mutex
-	muLocalStorage             sync.Mutex
-	muModel                    sync.Mutex
-	muFullModel                sync.Mutex
-	muKafkaClusterList         sync.Mutex
-	muKafkaTopicList           sync.Mutex
-	muKafkaConnector           sync.Mutex
-	muKafkaPartitionList       sync.Mutex
-	muKafkaReadWriteTabs       sync.Mutex
-	muKafkaSendMessageTextArea sync.Mutex
-	muKafkaReadMessagesTable   sync.Mutex
-	muOverlayWindowProvider    sync.Mutex
+	muAppConfig                                 sync.Mutex
+	muDb                                        sync.Mutex
+	muLocalStorage                              sync.Mutex
+	muModel                                     sync.Mutex
+	muFullModel                                 sync.Mutex
+	muKafkaClusterList                          sync.Mutex
+	muKafkaTopicList                            sync.Mutex
+	muKafkaConnector                            sync.Mutex
+	muKafkaPartitionList                        sync.Mutex
+	muKafkaReadWriteTabs                        sync.Mutex
+	muKafkaSendMessageTextArea                  sync.Mutex
+	muKafkaReadMessagesTable                    sync.Mutex
+	muOverlayWindowProvider                     sync.Mutex
+	muSpinnerWhenLoadMessagesFromKafkaComponent sync.Mutex
 }
 
-// newDIContainer создаёт новый пустой контейнер.
 func newDIContainer() *diContainer {
 	return &diContainer{}
 }
@@ -231,7 +232,8 @@ func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTa
 
 		slog.Info("Init KafkaReadWriteTabsComponent", "KafkaReadWriteTabsComponent", d.kafkaReadWriteTabs)
 		d.kafkaReadWriteTabs = components.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
-			d.KafkaSendMessageTableComponent(), d.KafkaSenderReader(), d.LocalStorage(), d.KafkaReadMessagesTableComponent())
+			d.KafkaSendMessageTableComponent(), d.KafkaSenderReader(), d.LocalStorage(), d.KafkaReadMessagesTableComponent(),
+			d.SpinnerWhenLoadMessagesFromKafkaComponent())
 	}
 
 	return d.kafkaReadWriteTabs
@@ -304,4 +306,20 @@ func (d *diContainer) OverlayWindowProvider() *components.OverlayWindowForMessag
 	}
 
 	return d.overlayWindowProvider
+}
+
+func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *components.SpinnerWhenLoadMessagesFromKafkaComponent {
+	if d.spinnerWhenLoadMessagesFromKafkaComponent == nil {
+		d.muSpinnerWhenLoadMessagesFromKafkaComponent.Lock()
+		defer d.muSpinnerWhenLoadMessagesFromKafkaComponent.Unlock()
+
+		if d.spinnerWhenLoadMessagesFromKafkaComponent != nil {
+			return d.spinnerWhenLoadMessagesFromKafkaComponent
+		}
+
+		slog.Info("Init SpinnerWhenLoadMessagesFromKafkaComponent", "SpinnerWhenLoadMessagesFromKafkaComponent", d.spinnerWhenLoadMessagesFromKafkaComponent)
+		d.spinnerWhenLoadMessagesFromKafkaComponent = components.NewSpinnerWhenLoadMessagesFromKafkaComponent()
+	}
+
+	return d.spinnerWhenLoadMessagesFromKafkaComponent
 }

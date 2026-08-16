@@ -3,7 +3,6 @@ package windows
 import (
 	"bytes"
 	"fmt"
-	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/debug"
 	"strconv"
@@ -232,7 +231,6 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case contracts.CloseOverlayWindow:
-		slog.Error("B", "m", "CloseOverlayWindow", "depth", m.stack.Depth())
 		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stack.Depth()))
 
 		var c tea.Cmd

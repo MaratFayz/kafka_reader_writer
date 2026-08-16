@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -82,6 +83,8 @@ type KafkaReadWriteTabsComponent struct {
 	historySentMessages               historySentMessages
 	kafkaReadMessageTable             KafkaReadMessageTable
 	isLoadHistorySentMessages         atomic.Bool
+	spinnerWhenLoadMessages           spinnerWhenLoadingKafkaMessages
+	isSpinnerTick                     bool
 }
 
 type kafkaConsumerProducer interface {
@@ -116,6 +119,12 @@ type KafkaReadMessageTable interface {
 	Init() tea.Cmd
 	GetActiveRow() []string
 	SetValues(messages []*contracts.ReadMessagesRow) error
+}
+
+type spinnerWhenLoadingKafkaMessages interface {
+	startTick() tea.Msg
+	update(msg tea.Msg, model *windows.Model) (tea.Model, tea.Cmd)
+	View() string
 }
 
 type errorWhenSendMessageToKafka struct {
@@ -219,6 +228,8 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 
 			return successWhenSetMessagesToReadMessagesTableCmd{}
 		}
+
+		k.isSpinnerTick = false
 		cmds = append(cmds, setMessagesToReadMessagesTableCmd)
 
 		return m, tea.Batch(cmds...)
@@ -365,9 +376,9 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 						return successWhenReadMessagesFromKafka{messages: messages}
 					}
 
-					cmds = append(cmds, readMessagesFromKafkaCmd)
+					cmds = append(cmds, readMessagesFromKafkaCmd, k.spinnerWhenLoadMessages.startTick)
+					k.isSpinnerTick = true
 					return m, tea.Batch(cmds...)
-
 				default:
 					var ok bool
 					m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
@@ -393,6 +404,14 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 			log.Fatal("m2 is not a *windows.Model")
 		}
 
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	case spinner.TickMsg:
+		if k.isSpinnerTick == false {
+			return m, tea.Batch(cmds...)
+		}
+
+		m, cmd := k.spinnerWhenLoadMessages.update(msg, m)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 	}
@@ -488,7 +507,14 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 
 		l = lipgloss.JoinVertical(lipgloss.Top, taText, tableText)
 	case READ:
-		l = lipgloss.JoinVertical(lipgloss.Top, k.kafkaReadMessageTable.View(), "")
+		var spinnerString string
+		if k.isSpinnerTick == true {
+			spinnerString = k.spinnerWhenLoadMessages.View()
+		} else {
+			spinnerString = ""
+		}
+
+		l = lipgloss.JoinVertical(lipgloss.Top, spinnerString, k.kafkaReadMessageTable.View())
 	}
 
 	doc.WriteString(s.window.Width((lipgloss.Width(row) * 4)).Render(l))
@@ -497,11 +523,12 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 }
 
 func CreateKafkaReadWriteTabsComponent(m *windows.Model, ks KafkaSendMessageTextArea, kt KafkaSendMessageTable,
-	kafkaSender kafkaConsumerProducer, historySentMessages historySentMessages, kr KafkaReadMessageTable) *KafkaReadWriteTabsComponent {
+	kafkaSender kafkaConsumerProducer, historySentMessages historySentMessages, kr KafkaReadMessageTable,
+	spinnerWhenLoadMessages spinnerWhenLoadingKafkaMessages) *KafkaReadWriteTabsComponent {
 	tabs := []string{"Read", "Write"}
 	tabContent := []string{"Lip Gloss Tab", "Blush Tab", "Eye Shadow Tab", "Mascara Tab", "Foundation Tab"}
 	k := &KafkaReadWriteTabsComponent{Tabs: tabs, TabContent: tabContent, styles: newStyles(true), model: m, kafkaSendMessageTextAreaComponent: ks,
 		kafkaSendMessageTableComponent: kt, kafkaProducerConsumer: kafkaSender, historySentMessages: historySentMessages, kafkaReadMessageTable: kr,
-		isLoadHistorySentMessages: atomic.Bool{}}
+		isLoadHistorySentMessages: atomic.Bool{}, spinnerWhenLoadMessages: spinnerWhenLoadMessages}
 	return k
 }

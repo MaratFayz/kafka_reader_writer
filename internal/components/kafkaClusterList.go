@@ -218,7 +218,7 @@ func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
 	delegate := newItemDelegateKafkaCluster(delegateKeys, &styles, model)
 	list := list.New(items, delegate, 0, 0)
 	list.Title = "Kafka Clusters"
-	list.AdditionalFullHelpKeys = func() []key.Binding {
+	list.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			listKeys.ToggleSpinner,
 			listKeys.InsertItem,
@@ -236,16 +236,6 @@ type LocalStorage interface {
 	GetKafkaClusters() []*contracts.KafkaCluster
 }
 
-// type KafkaCluster interface {
-// 	Title() string
-// 	Url() string
-// 	TrustStorePath() string
-// 	TrustStorePassword() string
-// 	Username() string
-// 	Password() string
-// 	SaslMechanism() string
-// }
-
 func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *KafkaClusterList {
 	kafkaClusterList := CreateKafkaClustersList(model)
 
@@ -258,7 +248,6 @@ func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *Ka
 		clusterMap[cluster.Title] = cluster
 	}
 	model.SetClusters(clusterMap)
-	// fmt.Println(clusterList)
 	for i, v := range clusterList {
 		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
 	}

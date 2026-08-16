@@ -4,17 +4,18 @@ import (
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	overlayv2 "github.com/madicen/bubble-overlay/v2"
 )
 
 type KafkaReadMessagesTableComponent struct {
-	table               *table.Model
-	model               *windows.Model
-	stack               overlayv2.Stack
-	isOverlayWindowShow bool
+	table                            *table.Model
+	model                            *windows.Model
+	isOverlayWindowShow              bool
+	spinnerWhenLoadMessagesFromKafka spinner.Model
+	isWaitingForMessageFromKafka     bool
 }
 
 var baseStyleKafkaReadMessagesTableComponent = lipgloss.NewStyle().
