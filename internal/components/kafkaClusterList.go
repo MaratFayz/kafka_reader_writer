@@ -4,7 +4,6 @@ import (
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
-	"strconv"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -55,17 +54,10 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 				return nil
 			}
 
-			// cmds = append(cmds, m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render("You chose "+title+"; pane 1")))
-			cmds = append(cmds, m.StartSpinner(), m.NewStatusMessage(u.styles.StatusMessage.Render(strconv.Itoa(len(cmds)))))
 			return tea.Batch(cmds...)
 
 		case key.Matches(msg, u.keys.Remove):
-			index := m.Index()
-			m.RemoveItem(index)
-			if len(m.Items()) == 0 {
-				u.keys.Remove.SetEnabled(false)
-			}
-			return m.NewStatusMessage(u.styles.StatusMessage.Render("Deleted " + title))
+			//TODO add вызов окна удаления
 		}
 	}
 
@@ -77,17 +69,6 @@ func newItemDelegateKafkaCluster(keys *DelegateKeyMapKafkaCluster, styles *Style
 	uf := ufKafkaCluster{model: model, keys: keys, styles: styles}
 
 	d.UpdateFunc = uf.updateFunc
-
-	help := []key.Binding{keys.Choose, keys.Remove}
-
-	d.ShortHelpFunc = func() []key.Binding {
-		return help
-	}
-
-	d.FullHelpFunc = func() [][]key.Binding {
-		return [][]key.Binding{help}
-	}
-
 	return d
 }
 
@@ -135,36 +116,11 @@ func newListKeyMapKafkaCluster() *ListKeyMapKafkaCluster {
 			key.WithKeys("a"),
 			key.WithHelp("a", "add item"),
 		),
-		ToggleSpinner: key.NewBinding(
-			key.WithKeys("s"),
-			key.WithHelp("s", "toggle spinner"),
-		),
-		ToggleTitleBar: key.NewBinding(
-			key.WithKeys("T"),
-			key.WithHelp("T", "toggle title"),
-		),
-		ToggleStatusBar: key.NewBinding(
-			key.WithKeys("S"),
-			key.WithHelp("S", "toggle status"),
-		),
-		TogglePagination: key.NewBinding(
-			key.WithKeys("P"),
-			key.WithHelp("P", "toggle pagination"),
-		),
-		ToggleHelpMenu: key.NewBinding(
-			key.WithKeys("H"),
-			key.WithHelp("H", "toggle help"),
-		),
 	}
 }
 
 type ListKeyMapKafkaCluster struct {
-	ToggleSpinner    key.Binding
-	ToggleTitleBar   key.Binding
-	ToggleStatusBar  key.Binding
-	TogglePagination key.Binding
-	ToggleHelpMenu   key.Binding
-	InsertItem       key.Binding
+	InsertItem key.Binding
 }
 
 type StylesKafkaCluster struct {
@@ -220,14 +176,10 @@ func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
 	list.Title = "Kafka Clusters"
 	list.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			listKeys.ToggleSpinner,
 			listKeys.InsertItem,
-			listKeys.ToggleTitleBar,
-			listKeys.ToggleStatusBar,
-			listKeys.TogglePagination,
-			listKeys.ToggleHelpMenu,
 		}
 	}
+	list.SetShowHelp(false)
 
 	return &KafkaClusterList{&list, delegateKeys, listKeys, &styles}
 }
@@ -258,74 +210,44 @@ func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *Ka
 func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// if m.ActivePane == 0 {
 	kcl := kc.List
-	keys := kc.ListKeys
-	delegateKeys := kc.DelegateKeys
+	// keys := kc.ListKeys
 
-	switch msg := msg.(type) {
+	switch msg.(type) {
 
 	case contracts.AskForHelp:
 		debug.WriteDebugFile("in kafkaClusterList: event contracts.AskForHelp")
-		return m, contracts.CreateHelpMessageEvent("sdfsdfsdf")
+		values := make([]contracts.KeyValue, 0)
+		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
+		values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})
+		values = append(values, contracts.KeyValue{Key: "x", Value: "Remove selected cluster"})
 
-	case tea.KeyPressMsg:
-		// Don't match any of the keys below if we're actively filtering.
-		if kcl.FilterState() == list.Filtering {
-			break
-		}
+		return m, contracts.CreateHelpMessageEvent(values)
 
-		switch {
-		case key.Matches(msg, keys.ToggleSpinner):
-			cmd := kcl.ToggleSpinner()
-			// statusCmd := kcl.NewStatusMessage("Pane " + fmt.Sprint(m.ActivePane))
-			// return m, tea.Batch(cmd, statusCmd)
-			return m, cmd
+		// case contracts.UserWantsClusterFromList:
+		// 				index := m.Index()
+		// 		m.RemoveItem(index)
+		// 		if len(m.Items()) == 0 {
+		// 			u.keys.Remove.SetEnabled(false)
+		// 		}
+		// 		return m.NewStatusMessage(u.styles.StatusMessage.Render("Deleted " + title))
 
-		case key.Matches(msg, keys.ToggleTitleBar):
-			v := !kcl.ShowTitle()
-			kcl.SetShowTitle(v)
-			kcl.SetShowFilter(v)
-			kcl.SetFilteringEnabled(v)
-			return m, nil
+		// case tea.KeyPressMsg:
+		// 	if kcl.FilterState() == list.Filtering {
+		// 		break
+		// 	}
 
-		case key.Matches(msg, keys.ToggleStatusBar):
-			kcl.SetShowStatusBar(!kcl.ShowStatusBar())
-			return m, nil
-
-		case key.Matches(msg, keys.TogglePagination):
-			kcl.SetShowPagination(!kcl.ShowPagination())
-			return m, nil
-
-		case key.Matches(msg, keys.ToggleHelpMenu):
-			kcl.SetShowHelp(!kcl.ShowHelp())
-			return m, nil
-
-		case key.Matches(msg, keys.InsertItem):
-			delegateKeys.Remove.SetEnabled(true)
-			// newItem := m.itemGenerator.next()
-			newItem := NewItemKafkaCluster("aaa", "bbb")
-			insCmd := kcl.InsertItem(0, newItem)
-			// statusCmd := kcl.NewStatusMessage("Added " + newItem.Title() + ", pane " + fmt.Sprint(m.ActivePane))
-			// return m, tea.Batch(insCmd, statusCmd)
-			return m, insCmd
-		}
+		// 	switch {
+		// 	case key.Matches(msg, keys.InsertItem): //TODO add открыть окно добавления кластера
+		// 		newItem := NewItemKafkaCluster("aaa", "bbb")
+		// 		insCmd := kcl.InsertItem(0, newItem)
+		// 		return m, insCmd
+		// 	}
 	}
 
-	// This will also call our delegate's update function.
 	newListModel, cmd := kcl.Update(msg)
 	kc.List = &newListModel
 	cmds = append(cmds, cmd)
-	// } else if m.ActivePane != 0 {
-	// 	// slog.Info("XXXXXX", "pane", m.ActivePane)
-	// 	switch msg := msg.(type) {
-	// 	case spinner.TickMsg:
-	// 		newListModel, cmd := kc.List.Update(msg)
-	// 		kc.List = &newListModel
-	// 		cmds = append(cmds, cmd)
-	// 		return m, tea.Batch(cmds...)
-	// 	}
-	// }
 
 	return m, tea.Batch(cmds...)
 }

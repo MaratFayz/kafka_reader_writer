@@ -1,8 +1,9 @@
-package components
+package readwritetabs
 
 import (
 	"log"
 	"log/slog"
+	"marat/fayz/kafka_reader_writer/internal/components"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"reflect"
@@ -197,7 +198,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
-	case initList:
+	case components.InitList:
 		k.clearReadTableKafkaMessages()
 		cmds = append(cmds, getMessagesFromHistoryCmd)
 		return m, tea.Batch(cmds...)

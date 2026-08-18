@@ -85,7 +85,6 @@ func CreateOrGetDb(databaseUrl string) (*Db, error) {
 	return &Db{conn: conn}, nil
 }
 
-// Close закрывает подключение к базе данных.
 func (d *Db) Close() error {
 	err := d.conn.Close()
 	if err != nil {

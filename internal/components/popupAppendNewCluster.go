@@ -11,34 +11,34 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-type OverlayWindowForAppendNewServer struct {
+type OverlayWindowForAppendNewCluster struct {
 	key      string
 	body     string
 	offset   string
 	datetime string
 }
 
-func (*OverlayWindowForAppendNewServer) Init() tea.Cmd { return nil }
+func (*OverlayWindowForAppendNewCluster) Init() tea.Cmd { return nil }
 
-func (m *OverlayWindowForAppendNewServer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *OverlayWindowForAppendNewCluster) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "in OverlayWindowForAppendNewServer: event %v", msg)
+	fmt.Fprintf(&buf, "in OverlayWindowForAppendNewCluster: event %v", msg)
 	debug.WriteDebugFile(buf.String())
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		var buf bytes.Buffer
-		fmt.Fprintf(&buf, "in OverlayWindowForAppendNewServer: event KeyPressMsg: %s", msg.String())
+		fmt.Fprintf(&buf, "in OverlayWindowForAppendNewCluster: event KeyPressMsg: %s", msg.String())
 		debug.WriteDebugFile(buf.String())
 
 		if msg.String() == "esc" {
-			return m, func() tea.Msg { return contracts.CloseWindowForDetailedReadMessage{} }
+			return m, func() tea.Msg { return contracts.CloseWindowForAppendNewCluster{} }
 		}
 	}
 	return m, nil
 }
 
-func (o *OverlayWindowForAppendNewServer) View() tea.View {
+func (o *OverlayWindowForAppendNewCluster) View() tea.View {
 	s := lipgloss.NewStyle().
 		Width(34).
 		Height(3).
@@ -57,5 +57,5 @@ func CreateNewOverlayWindowForAppendNewServerProvider() *OverlayWindowForAppendN
 }
 
 func (o *OverlayWindowForAppendNewServerProvider) ProvideNew(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForAppendNewServer{key: key, body: body, offset: offset, datetime: datetime}
+	return &OverlayWindowForAppendNewCluster{key: key, body: body, offset: offset, datetime: datetime}
 }

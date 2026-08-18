@@ -234,6 +234,7 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider 
 			listKeys.ToggleHelpMenu,
 		}
 	}
+	list.SetShowHelp(false)
 
 	return &KafkaTopicList{&list, delegateKeys, listKeys, &styles, model, kafkaConnectorProvider}
 }
@@ -241,13 +242,12 @@ func CreateKafkaTopicsList(model ModelChangerKafkaTopic, kafkaConnectorProvider 
 func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// if m.ActivePane == 1 {
 	kcl := kt.List
 	keys := kt.ListKeys
 	delegateKeys := kt.DelegateKeys
 
 	switch msg := msg.(type) {
-	case initList:
+	case InitList:
 		v, ok := m.IsLoadTopics[m.SelectedKafkaCluster]
 
 		if !ok {

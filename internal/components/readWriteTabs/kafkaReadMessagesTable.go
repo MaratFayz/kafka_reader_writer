@@ -1,4 +1,4 @@
-package components
+package readwritetabs
 
 import (
 	"marat/fayz/kafka_reader_writer/internal/contracts"

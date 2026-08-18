@@ -32,7 +32,7 @@ func (m *OverlayWindowForDeleteNewServer) Update(msg tea.Msg) (tea.Model, tea.Cm
 		debug.WriteDebugFile(buf.String())
 
 		if msg.String() == "esc" {
-			return m, func() tea.Msg { return contracts.CloseWindowForDetailedReadMessage{} }
+			return m, func() tea.Msg { return contracts.CloseWindowForDeleteNewServer{} }
 		}
 	}
 	return m, nil
@@ -46,7 +46,11 @@ func (o *OverlayWindowForDeleteNewServer) View() tea.View {
 		BorderForeground(lipgloss.Color("63")).
 		Align(lipgloss.Center, lipgloss.Center)
 
-	return tea.NewView(lipgloss.JoinVertical(lipgloss.Center, lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)), lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)), lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)), lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
+	return tea.NewView(lipgloss.JoinVertical(lipgloss.Center,
+		lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
+		lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
+		lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
+		lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
 }
 
 type OverlayWindowForDeleteNewServerProvider struct {

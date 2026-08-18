@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/closer"
 	"marat/fayz/kafka_reader_writer/internal/components"
+	readwritetabs "marat/fayz/kafka_reader_writer/internal/components/readWriteTabs"
 	"marat/fayz/kafka_reader_writer/internal/config"
 	"marat/fayz/kafka_reader_writer/internal/database"
 	"marat/fayz/kafka_reader_writer/internal/kafka/connection"
@@ -24,12 +25,12 @@ type diContainer struct {
 	kafkaTopicList                             *components.KafkaTopicList
 	kafkaConnector                             *connection.KafkaConnectorProvider
 	kafkaPartitionList                         *components.KafkaPartitionList
-	kafkaReadWriteTabs                         *components.KafkaReadWriteTabsComponent
-	kafkaSendMessageTextArea                   *components.KafkaSendMessageTextAreaComponent
-	kafkaSendMessageTableComponent             *components.KafkaSendMessageTableComponent
-	kafkaReadMessagesTableComponent            *components.KafkaReadMessagesTableComponent
+	kafkaReadWriteTabs                         *readwritetabs.KafkaReadWriteTabsComponent
+	kafkaSendMessageTextArea                   *readwritetabs.KafkaSendMessageTextAreaComponent
+	kafkaSendMessageTableComponent             *readwritetabs.KafkaSendMessageTableComponent
+	kafkaReadMessagesTableComponent            *readwritetabs.KafkaReadMessagesTableComponent
 	overlayForKafkaReadDetailedMessageProvider *components.OverlayWindowForKafkaReadDetailedMessageProvider
-	spinnerWhenLoadMessagesFromKafkaComponent  *components.SpinnerWhenLoadMessagesFromKafkaComponent
+	spinnerWhenLoadMessagesFromKafkaComponent  *readwritetabs.SpinnerWhenLoadMessagesFromKafkaComponent
 	overlayWindowForAppendNewServerProvider    *components.OverlayWindowForAppendNewServerProvider
 	overlayWindowForHelpProvider               *components.OverlayWindowForHelpProvider
 	overlayWindowForDeleteNewServerProvider    *components.OverlayWindowForDeleteNewServerProvider
@@ -228,7 +229,7 @@ func (d *diContainer) KafkaPartitionListComponent() *components.KafkaPartitionLi
 	return d.kafkaPartitionList
 }
 
-func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTabsComponent {
+func (d *diContainer) KafkaReadWriteTabsComponent() *readwritetabs.KafkaReadWriteTabsComponent {
 	if d.kafkaReadWriteTabs == nil {
 		d.muKafkaReadWriteTabs.Lock()
 		defer d.muKafkaReadWriteTabs.Unlock()
@@ -238,7 +239,7 @@ func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTa
 		}
 
 		slog.Info("Init KafkaReadWriteTabsComponent", "KafkaReadWriteTabsComponent", d.kafkaReadWriteTabs)
-		d.kafkaReadWriteTabs = components.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
+		d.kafkaReadWriteTabs = readwritetabs.CreateKafkaReadWriteTabsComponent(d.Model(), d.KafkaSendMessageTextAreaComponent(),
 			d.KafkaSendMessageTableComponent(), d.KafkaSenderReader(), d.LocalStorage(), d.KafkaReadMessagesTableComponent(),
 			d.SpinnerWhenLoadMessagesFromKafkaComponent())
 	}
@@ -246,7 +247,7 @@ func (d *diContainer) KafkaReadWriteTabsComponent() *components.KafkaReadWriteTa
 	return d.kafkaReadWriteTabs
 }
 
-func (d *diContainer) KafkaSendMessageTextAreaComponent() *components.KafkaSendMessageTextAreaComponent {
+func (d *diContainer) KafkaSendMessageTextAreaComponent() *readwritetabs.KafkaSendMessageTextAreaComponent {
 	if d.kafkaSendMessageTextArea == nil {
 		d.muKafkaSendMessageTextArea.Lock()
 		defer d.muKafkaSendMessageTextArea.Unlock()
@@ -256,13 +257,13 @@ func (d *diContainer) KafkaSendMessageTextAreaComponent() *components.KafkaSendM
 		}
 
 		slog.Info("Init KafkaSendMessageTextAreaComponent", "KafkaSendMessageTextAreaComponent", d.kafkaSendMessageTextArea)
-		d.kafkaSendMessageTextArea = components.CreateKafkaSendMessageTextArea(d.Model())
+		d.kafkaSendMessageTextArea = readwritetabs.CreateKafkaSendMessageTextArea(d.Model())
 	}
 
 	return d.kafkaSendMessageTextArea
 }
 
-func (d *diContainer) KafkaSendMessageTableComponent() *components.KafkaSendMessageTableComponent {
+func (d *diContainer) KafkaSendMessageTableComponent() *readwritetabs.KafkaSendMessageTableComponent {
 	if d.kafkaSendMessageTableComponent == nil {
 		d.muKafkaSendMessageTextArea.Lock()
 		defer d.muKafkaSendMessageTextArea.Unlock()
@@ -272,13 +273,13 @@ func (d *diContainer) KafkaSendMessageTableComponent() *components.KafkaSendMess
 		}
 
 		slog.Info("Init KafkaSendMessageTableComponent", "KafkaSendMessageTableComponent", d.kafkaSendMessageTableComponent)
-		d.kafkaSendMessageTableComponent = components.CreateKafkaSendMessageTable(d.Model())
+		d.kafkaSendMessageTableComponent = readwritetabs.CreateKafkaSendMessageTable(d.Model())
 	}
 
 	return d.kafkaSendMessageTableComponent
 }
 
-func (d *diContainer) KafkaReadMessagesTableComponent() *components.KafkaReadMessagesTableComponent {
+func (d *diContainer) KafkaReadMessagesTableComponent() *readwritetabs.KafkaReadMessagesTableComponent {
 	if d.kafkaReadMessagesTableComponent == nil {
 		d.muKafkaReadMessagesTable.Lock()
 		defer d.muKafkaReadMessagesTable.Unlock()
@@ -288,7 +289,7 @@ func (d *diContainer) KafkaReadMessagesTableComponent() *components.KafkaReadMes
 		}
 
 		slog.Info("Init KafkaReadMessagesTableComponent", "KafkaReadMessagesTableComponent", d.kafkaReadMessagesTableComponent)
-		d.kafkaReadMessagesTableComponent = components.CreateKafkaReadMessagesTable(d.Model())
+		d.kafkaReadMessagesTableComponent = readwritetabs.CreateKafkaReadMessagesTable(d.Model())
 	}
 
 	return d.kafkaReadMessagesTableComponent
@@ -315,7 +316,7 @@ func (d *diContainer) OverlayWindowForKafkaReadDetailedMessageProvider() *compon
 	return d.overlayForKafkaReadDetailedMessageProvider
 }
 
-func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *components.SpinnerWhenLoadMessagesFromKafkaComponent {
+func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *readwritetabs.SpinnerWhenLoadMessagesFromKafkaComponent {
 	if d.spinnerWhenLoadMessagesFromKafkaComponent == nil {
 		d.muSpinnerWhenLoadMessagesFromKafkaComponent.Lock()
 		defer d.muSpinnerWhenLoadMessagesFromKafkaComponent.Unlock()
@@ -325,7 +326,7 @@ func (d *diContainer) SpinnerWhenLoadMessagesFromKafkaComponent() *components.Sp
 		}
 
 		slog.Info("Init SpinnerWhenLoadMessagesFromKafkaComponent", "SpinnerWhenLoadMessagesFromKafkaComponent", d.spinnerWhenLoadMessagesFromKafkaComponent)
-		d.spinnerWhenLoadMessagesFromKafkaComponent = components.NewSpinnerWhenLoadMessagesFromKafkaComponent()
+		d.spinnerWhenLoadMessagesFromKafkaComponent = readwritetabs.NewSpinnerWhenLoadMessagesFromKafkaComponent()
 	}
 
 	return d.spinnerWhenLoadMessagesFromKafkaComponent

@@ -46,6 +46,10 @@ type Model struct {
 
 	isHelpWindowNeedToOpen bool
 	helpWindow             HelpWindowProvider
+
+	backgroundColorMsg string
+	height             int
+	width              int
 }
 
 type activePane int
@@ -133,7 +137,7 @@ type OverlayWindowProvider interface {
 }
 
 type HelpWindowProvider interface {
-	ProvideNewOverlayWindowForHelp(text string) tea.Model
+	ProvideNewOverlayWindowForHelp(values []contracts.KeyValue) tea.Model
 }
 
 func (m *Model) KafkaClusterChosenNextActivePane() tea.Cmd {
@@ -244,10 +248,13 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
+		m.backgroundColorMsg = msg.String()
 		debug.WriteDebugFile("in main: event BackgroundColorMsg = " + msg.String())
 		return m, nil
 
 	case tea.WindowSizeMsg:
+		m.height = msg.Height
+		m.width = msg.Width
 		debug.WriteDebugFile("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
 		return m, nil
 
@@ -310,10 +317,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activePane = TABS_READ_WRITE_HELP_WINDOW
 		}
 
-		debug.WriteDebugFile("in main: event contracts.HelpMessage, value = " + msg.Text + ", создание окна помощи, активная панель теперь " +
+		debug.WriteDebugFile("in main: event contracts.HelpMessage, value = " + ", создание окна помощи, активная панель теперь " +
 			strconv.Itoa(int(m.activePane)))
 
-		return m, m.stack.Push(m.helpWindow.ProvideNewOverlayWindowForHelp(msg.Text), overlay.OverlayConfig{
+		return m, m.stack.Push(m.helpWindow.ProvideNewOverlayWindowForHelp(msg.Values), overlay.OverlayConfig{
 			Placement:           overlay.Center(),
 			DimOpacity:          0.35,
 			CloseOnEscape:       false,
@@ -392,7 +399,7 @@ func (m *Model) View() tea.View {
 	// Update list size.
 	// h, _ := styles.GetApp().GetFrameSize()
 	// kcl.SetSize(100-h, 30)
-	kcl.SetSize(30, 30)
+	kcl.SetSize(m.width/4, m.height)
 	// h, v := styles.GetApp().GetFrameSize()
 	// kcl.SetSize(100-h, 100-v)
 
@@ -409,7 +416,7 @@ func (m *Model) View() tea.View {
 	// h2, _ := stylesKtl.GetApp().GetFrameSize()
 	// slog.Info("V", "Kafkfa Topic", v2, "v1", v)
 	// ktl.SetSize(100-h2, 30)
-	ktl.SetSize(50, 30)
+	ktl.SetSize(m.width/4, m.height)
 
 	// Update the model and list styles.
 	ktl.Styles.Title = stylesKtl.GetTitle()
@@ -424,7 +431,7 @@ func (m *Model) View() tea.View {
 	// h3, _ := stylesKpl.GetApp().GetFrameSize()
 	// slog.Info("V", "Kafkfa Topic", v2, "v1", v)
 	// kpl.SetSize(100-h3, 30)
-	kpl.SetSize(50, 30)
+	kpl.SetSize(m.width/4, m.height)
 
 	// Update the model and list styles.
 	kpl.Styles.Title = stylesKpl.GetTitle()
@@ -452,7 +459,7 @@ func (m *Model) View() tea.View {
 	v3 := lipgloss.JoinHorizontal(lipgloss.Left, kclString, ktlString, kplString, kafkaReadWriteTabsString)
 
 	if m.stack.Depth() > 0 {
-		v4 := m.stack.CompositeView(v3, 120, 30)
+		v4 := m.stack.CompositeView(v3, m.width, m.height)
 		v4.AltScreen = true
 		return v4
 	} else {

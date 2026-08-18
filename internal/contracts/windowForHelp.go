@@ -1,6 +1,8 @@
 package contracts
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+)
 
 type CloseWindowForHelp struct{}
 
@@ -8,7 +10,12 @@ type AskForHelp struct {
 }
 
 type HelpMessage struct {
-	Text string
+	Values []KeyValue
+}
+
+type KeyValue struct {
+	Key   string
+	Value string
 }
 
 func CreateAskForHelpEvent() tea.Cmd {
@@ -17,8 +24,8 @@ func CreateAskForHelpEvent() tea.Cmd {
 	}
 }
 
-func CreateHelpMessageEvent(text string) tea.Cmd {
+func CreateHelpMessageEvent(values []KeyValue) tea.Cmd {
 	return func() tea.Msg {
-		return HelpMessage{Text: text}
+		return HelpMessage{Values: values}
 	}
 }

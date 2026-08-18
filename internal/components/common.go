@@ -1,5 +1,5 @@
 package components
 
-type initList interface {
+type InitList interface {
 	IsInitList() bool
 }

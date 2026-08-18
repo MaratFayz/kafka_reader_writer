@@ -232,6 +232,7 @@ func CreateKafkaPartitionsList(model ModelChangerKafkaPartition, kafkaPartitions
 			listKeys.ToggleHelpMenu,
 		}
 	}
+	list.SetShowHelp(false)
 
 	return &KafkaPartitionList{&list, delegateKeys, listKeys, &styles, model, kafkaPartitionsProvider}
 }
@@ -245,7 +246,7 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 	delegateKeys := kt.DelegateKeys
 
 	switch msg := msg.(type) {
-	case initList:
+	case InitList:
 		mapTopics, ok := m.IsLoadPartitions[m.SelectedKafkaCluster]
 
 		if !ok {

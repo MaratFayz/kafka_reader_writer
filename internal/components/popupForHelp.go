@@ -12,7 +12,7 @@ import (
 )
 
 type OverlayWindowForHelp struct {
-	Text string
+	Values []contracts.KeyValue
 }
 
 func (*OverlayWindowForHelp) Init() tea.Cmd { return nil }
@@ -43,13 +43,19 @@ func (o *OverlayWindowForHelp) View() tea.View {
 		BorderForeground(lipgloss.Color("63")).
 		Align(lipgloss.Center, lipgloss.Center)
 
+	helps := make([]string, len(o.Values))
+
+	for _, h := range o.Values {
+		helps = append(helps, lipgloss.JoinHorizontal(lipgloss.Center, h.Key, s.Render(h.Value)))
+	}
+
 	return tea.NewView(
 		lipgloss.JoinVertical(
 			lipgloss.Center,
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
-			lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.Text))))
+			helps...))
 }
 
 type OverlayWindowForHelpProvider struct {
@@ -59,6 +65,6 @@ func CreateNewOverlayWindowForHelpProvider() *OverlayWindowForHelpProvider {
 	return &OverlayWindowForHelpProvider{}
 }
 
-func (o *OverlayWindowForHelpProvider) ProvideNewOverlayWindowForHelp(text string) tea.Model {
-	return &OverlayWindowForHelp{Text: text}
+func (o *OverlayWindowForHelpProvider) ProvideNewOverlayWindowForHelp(values []contracts.KeyValue) tea.Model {
+	return &OverlayWindowForHelp{Values: values}
 }
