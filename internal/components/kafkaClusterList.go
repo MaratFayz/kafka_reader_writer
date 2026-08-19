@@ -68,6 +68,19 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 				return nil
 			}
 			return tea.Batch(cmds...)
+
+		case key.Matches(msg, u.keys.Edit):
+			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
+				slog.Info("in kafkaClusterList: chosen cluster to edit = " + i.Title() + ", emit event UserWantsEditClusterInList")
+
+				cmd := func() tea.Msg {
+					return contracts.UserWantsEditClusterInList{ChosenCluster: i.Title()}
+				}
+				cmds = append(cmds, cmd)
+			} else {
+				return nil
+			}
+			return tea.Batch(cmds...)
 		}
 	}
 
@@ -85,6 +98,7 @@ func newItemDelegateKafkaCluster(keys *DelegateKeyMapKafkaCluster, styles *Style
 type DelegateKeyMapKafkaCluster struct {
 	Choose key.Binding
 	Remove key.Binding
+	Edit   key.Binding
 }
 
 // Additional short help entries. This satisfies the help.KeyMap interface and
@@ -93,16 +107,16 @@ func (d DelegateKeyMapKafkaCluster) ShortHelp() []key.Binding {
 	return []key.Binding{
 		d.Choose,
 		d.Remove,
+		d.Edit,
 	}
 }
 
-// Additional full help entries. This satisfies the help.KeyMap interface and
-// is entirely optional.
 func (d DelegateKeyMapKafkaCluster) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
 			d.Choose,
 			d.Remove,
+			d.Edit,
 		},
 	}
 }
@@ -116,6 +130,10 @@ func NewDelegateKeyMapKafkaCluster() *DelegateKeyMapKafkaCluster {
 		Remove: key.NewBinding(
 			key.WithKeys("x", "backspace"),
 			key.WithHelp("x", "delete"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys("e", "backspace"),
+			key.WithHelp("e", "delete"),
 		),
 	}
 }
@@ -174,7 +192,7 @@ func NewItemKafkaCluster(title string, description string) ItemKafkaCluster {
 }
 
 func CreateKafkaClustersList() *KafkaClusterList {
-	styles := newStylesKafkaCluster(false) // default to dark background styles
+	styles := newStylesKafkaCluster(false)
 
 	delegateKeys := NewDelegateKeyMapKafkaCluster()
 	listKeys := newListKeyMapKafkaCluster()
@@ -203,6 +221,9 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 	switch msg := msg.(type) {
 	case contracts.UpdateListOfClustersEvent:
 		slog.Info("Event contracts.UpdateListOfClustersEvents in KafkaClusterList")
+		kcl.SetItems(make([]list.Item, 0))
+		kcl.SetFilterState(0)
+		kcl.SetFilterText("")
 
 		for i, v := range msg.Clusters {
 			kcl.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
@@ -218,25 +239,19 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 
 		return m, contracts.CreateHelpMessageEvent(values)
 
-		// case contracts.UserApprovedDeletionClusterFromList:
-		// 				index := m.Index()
-		// 		m.RemoveItem(index)
-		// 		if len(m.Items()) == 0 {
-		// 			u.keys.Remove.SetEnabled(false)
-		// 		}
-		// 		return m.NewStatusMessage(u.styles.StatusMessage.Render("Deleted " + title))
+	case tea.KeyPressMsg:
+		if kcl.FilterState() == list.Filtering {
+			break
+		}
 
-		// case tea.KeyPressMsg:
-		// 	if kcl.FilterState() == list.Filtering {
-		// 		break
-		// 	}
-
-		// 	switch {
-		// 	case key.Matches(msg, keys.InsertItem): //TODO add открыть окно добавления кластера
-		// 		newItem := NewItemKafkaCluster("aaa", "bbb")
-		// 		insCmd := kcl.InsertItem(0, newItem)
-		// 		return m, insCmd
-		// 	}
+		switch {
+		case key.Matches(msg, kc.ListKeys.InsertItem):
+			cmd := func() tea.Msg {
+				return contracts.UserWantsAddClusterToList{}
+			}
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
+		}
 	}
 
 	newListModel, cmd := kcl.Update(msg)
