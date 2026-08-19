@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"embed"
-	"fmt"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
@@ -60,9 +59,9 @@ func CreateOrGetDb(databaseUrl string) (*Db, error) {
 	filePath := "database.db"
 	err := os.Remove(filePath)
 	if err != nil {
-		fmt.Println("Error deleting file:", err)
+		slog.Error("Error deleting file:", err)
 	} else {
-		fmt.Println("File successfully deleted")
+		slog.Info("File successfully deleted")
 	}
 
 	conn, err := sql.Open("sqlite3", databaseUrl)
@@ -80,7 +79,7 @@ func CreateOrGetDb(databaseUrl string) (*Db, error) {
 		panic(err)
 	}
 
-	fmt.Println("Миграции успешно применены!")
+	slog.Info("Миграции успешно применены!")
 
 	return &Db{conn: conn}, nil
 }

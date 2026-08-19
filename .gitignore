@@ -4,3 +4,4 @@ kafka_reader_writer
 krw
 main
 *.db
+*.log

@@ -13,3 +13,11 @@ type KafkaCluster struct {
 type KafkaClusterProvider interface {
 	GetKafkaClusters() []*KafkaCluster
 }
+
+type UserChosenKafkaCluster struct {
+	ChosenCluster string
+}
+
+type UserWantsDeleteClusterFromList struct {
+	ChosenCluster string
+}

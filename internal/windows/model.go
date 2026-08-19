@@ -140,17 +140,6 @@ type HelpWindowProvider interface {
 	ProvideNewOverlayWindowForHelp(values []contracts.KeyValue) tea.Model
 }
 
-func (m *Model) KafkaClusterChosenNextActivePane() tea.Cmd {
-	m.activePane = TOPICS
-	return func() tea.Msg {
-		return initList{}
-	}
-}
-
-func (m *Model) SetChosenKafkaCluster(selectedKafkaCluster string) {
-	m.SelectedKafkaCluster = selectedKafkaCluster
-}
-
 func (m *Model) KafkaTopicChosenNextActivePane() tea.Cmd {
 	m.activePane = PARTITIONS
 	return func() tea.Msg {
@@ -258,6 +247,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debug.WriteDebugFile("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
 		return m, nil
 
+	case contracts.UserChosenKafkaCluster:
+		m.activePane = TOPICS
+		m.SelectedKafkaCluster = msg.ChosenCluster
+		debug.WriteDebugFile("in main: event contracts.UserChosenKafkaCluster: activePane = " + strconv.Itoa(int(m.activePane)) +
+			", m.SelectedKafkaCluster = " + m.SelectedKafkaCluster)
+
+		return m, func() tea.Msg {
+			return initList{}
+		}
+
+	case contracts.UserWantsDeleteClusterFromList:
+		debug.WriteDebugFile("in main: event contracts.UserWantsDeleteClusterFromList")
+		// m.activePane = CLUSTERS_DELETE_CLUSTER_WINDOW
+
+		// return m, m.stack.Push(m.deleteClusterWindow.ProvideNewOverlayWindowForDeleteCluster(msg.ChosenCluster), overlay.OverlayConfig{
+		// 	Placement:           overlay.Center(),
+		// 	DimOpacity:          0.35,
+		// 	CloseOnEscape:       false,
+		// 	CloseOnClickOutside: false,
+		// })
+
 	case contracts.CloseWindowForDetailedReadMessage:
 		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stack.Depth()))
 
@@ -301,7 +311,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case contracts.HelpMessage:
-
 		if m.isHelpWindowNeedToOpen == false {
 			return m, nil
 		}
@@ -310,7 +319,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case CLUSTERS:
 			m.activePane = CLUSTERS_HELP_WINDOW
 		case TOPICS:
-			m.activePane = PARTITIONS_HELP_WINDOW
+			m.activePane = TOPICS_HELP_WINDOW
 		case PARTITIONS:
 			m.activePane = PARTITIONS_HELP_WINDOW
 		case TABS_READ_WRITE:
@@ -380,7 +389,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debug.WriteDebugFile("in main: TABS_READ_WRITE")
 		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
 		return m, tea.Batch(cmd)
-	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW:
+	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW, TOPICS_HELP_WINDOW, PARTITIONS_HELP_WINDOW:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in main: активная панель %v: event %v", m.activePane, msg)
 		debug.WriteDebugFile(buf.String())
