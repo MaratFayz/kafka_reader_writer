@@ -5,3 +5,4 @@ krw
 main
 *.db
 *.log
+.DS_Store
