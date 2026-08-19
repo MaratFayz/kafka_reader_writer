@@ -7,15 +7,15 @@ import (
 )
 
 func main() {
-	// config := &config.Config{
-	// 	username:  "SFA",
-	// 	password:  "SFADEV123",
-	// 	broker:    "172.16.15.171:9093",
-	// 	topic:     "SFA_MORTG_DEALCALL_TEST",
-	// 	partition: 0,
-	// 	// certificateFilePath: "./bmc.crt",
-	// 	certificateFilePath: "./certificate.pem",
-	// }
+	file, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	handler := slog.NewTextHandler(file, nil)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
 	a := app.New()
 

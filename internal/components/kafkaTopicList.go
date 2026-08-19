@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
+	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
 	"charm.land/bubbles/v2/key"
@@ -264,6 +265,14 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
+	case contracts.AskForHelp:
+		debug.WriteDebugFile("in kafkaTopicList: event contracts.AskForHelp")
+		values := make([]contracts.KeyValue, 0)
+		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
+		// values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})
+		// values = append(values, contracts.KeyValue{Key: "x", Value: "Remove selected cluster"})
+
+		return m, contracts.CreateHelpMessageEvent(values)
 	case loadedKafkaTopicsMsg:
 		kt.model.SetTopicsForCluster(msg.cluster, msg.topics)
 		cmd := func() tea.Msg {

@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
+	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -240,7 +241,6 @@ func CreateKafkaPartitionsList(model ModelChangerKafkaPartition, kafkaPartitions
 func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// if m.ActivePane == 2 {
 	kcl := kt.List
 	keys := kt.ListKeys
 	delegateKeys := kt.DelegateKeys
@@ -270,6 +270,14 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
+	case contracts.AskForHelp:
+		debug.WriteDebugFile("in kafkaPartitionList: event contracts.AskForHelp")
+		values := make([]contracts.KeyValue, 0)
+		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
+		// values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})
+		// values = append(values, contracts.KeyValue{Key: "x", Value: "Remove selected cluster"})
+
+		return m, contracts.CreateHelpMessageEvent(values)
 	case loadedKafkaPartitionsMsg:
 		kt.model.SetPartitionsForClusterAndTopic(msg.cluster, msg.topic, msg.partitions)
 		cmd := func() tea.Msg {

@@ -32,13 +32,11 @@ type ModelChangerKafkaCluster interface {
 }
 
 type ufKafkaCluster struct {
-	model  ModelChangerKafkaCluster
 	keys   *DelegateKeyMapKafkaCluster
 	styles *StylesKafkaCluster
 }
 
 func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
-	var title string
 	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
@@ -46,9 +44,11 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 		switch {
 		case key.Matches(msg, u.keys.Choose):
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
-				title = i.Title()
-				u.model.SetChosenKafkaCluster(title)
-				cmd := u.model.KafkaClusterChosenNextActivePane()
+				debug.WriteDebugFile("in kafkaClusterList: chosen cluster = " + i.Title() + ", emit event UserChosenKafkaCluster")
+
+				cmd := func() tea.Msg {
+					return contracts.UserChosenKafkaCluster{ChosenCluster: i.Title()}
+				}
 				cmds = append(cmds, cmd)
 			} else {
 				return nil
@@ -57,16 +57,26 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 			return tea.Batch(cmds...)
 
 		case key.Matches(msg, u.keys.Remove):
-			//TODO add вызов окна удаления
+			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
+				debug.WriteDebugFile("in kafkaClusterList: chosen cluster to delete = " + i.Title() + ", emit event UserWantsDeleteClusterFromList")
+
+				cmd := func() tea.Msg {
+					return contracts.UserWantsDeleteClusterFromList{ChosenCluster: i.Title()}
+				}
+				cmds = append(cmds, cmd)
+			} else {
+				return nil
+			}
+			return tea.Batch(cmds...)
 		}
 	}
 
 	return nil
 }
 
-func newItemDelegateKafkaCluster(keys *DelegateKeyMapKafkaCluster, styles *StylesKafkaCluster, model ModelChangerKafkaCluster) list.DefaultDelegate {
+func newItemDelegateKafkaCluster(keys *DelegateKeyMapKafkaCluster, styles *StylesKafkaCluster) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
-	uf := ufKafkaCluster{model: model, keys: keys, styles: styles}
+	uf := ufKafkaCluster{keys: keys, styles: styles}
 
 	d.UpdateFunc = uf.updateFunc
 	return d
@@ -163,7 +173,7 @@ func NewItemKafkaCluster(title string, description string) ItemKafkaCluster {
 	return ItemKafkaCluster{title: title, description: description}
 }
 
-func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
+func CreateKafkaClustersList() *KafkaClusterList {
 	styles := newStylesKafkaCluster(false) // default to dark background styles
 
 	delegateKeys := NewDelegateKeyMapKafkaCluster()
@@ -171,7 +181,7 @@ func CreateKafkaClustersList(model ModelChangerKafkaCluster) *KafkaClusterList {
 
 	items := make([]list.Item, 0)
 
-	delegate := newItemDelegateKafkaCluster(delegateKeys, &styles, model)
+	delegate := newItemDelegateKafkaCluster(delegateKeys, &styles)
 	list := list.New(items, delegate, 0, 0)
 	list.Title = "Kafka Clusters"
 	list.AdditionalShortHelpKeys = func() []key.Binding {
@@ -189,7 +199,7 @@ type LocalStorage interface {
 }
 
 func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *KafkaClusterList {
-	kafkaClusterList := CreateKafkaClustersList(model)
+	kafkaClusterList := CreateKafkaClustersList()
 
 	kc := ls.GetKafkaClusters()
 
@@ -224,7 +234,7 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 
 		return m, contracts.CreateHelpMessageEvent(values)
 
-		// case contracts.UserWantsClusterFromList:
+		// case contracts.UserApprovedDeletionClusterFromList:
 		// 				index := m.Index()
 		// 		m.RemoveItem(index)
 		// 		if len(m.Items()) == 0 {
