@@ -3,8 +3,8 @@ package windows
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 	"strconv"
 	"sync"
 
@@ -39,10 +39,10 @@ type Model struct {
 	kafkaPartitionList KafkaPartitionList
 	kafkaReadWriteTabs KafkaReadWriteTabsComponent
 
-	stack                                    overlayv2.Stack
+	stackOfOverlayWindows                    overlayv2.Stack
 	isWindowForDetailedReadKafkaMessageShown bool
 
-	overlayWindowProvider OverlayWindowProvider
+	overlayWindowProvider OverlayWindowForKafkaReadDetailedMessageProvider
 
 	isHelpWindowNeedToOpen bool
 	helpWindow             HelpWindowProvider
@@ -50,9 +50,17 @@ type Model struct {
 	backgroundColorMsg string
 	height             int
 	width              int
+
+	errorWindow ErrorWindowProvider
+
+	localStorage LocalStorage
 }
 
 type activePane int
+
+type LocalStorage interface {
+	GetKafkaClusters() ([]*contracts.KafkaCluster, error)
+}
 
 const (
 	CLUSTERS activePane = iota
@@ -64,6 +72,13 @@ const (
 	TOPICS_HELP_WINDOW
 	PARTITIONS_HELP_WINDOW
 	TABS_READ_WRITE_HELP_WINDOW
+	CLUSTERS_ERROR_WINDOW
+	TOPICS_ERROR_WINDOW
+	PARTITIONS_ERROR_WINDOW
+	TABS_READ_WRITE_ERROR_WINDOW
+	CLUSTERS_APPEND_CLUSTER_WINDOW
+	CLUSTERS_DELETE_CLUSTER_WINDOW
+	CLUSTERS_EDIT_CLUSTER_WINDOW
 )
 
 func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
@@ -132,12 +147,16 @@ type StylesKafkaCluster interface {
 	GetStatusMessage() lipgloss.Style
 }
 
-type OverlayWindowProvider interface {
-	ProvideNew(body string, header string, offset string, datetime string) tea.Model
+type OverlayWindowForKafkaReadDetailedMessageProvider interface {
+	ProvideNewWindowForKafkaReadDetailedMessage(body string, header string, offset string, datetime string) tea.Model
 }
 
 type HelpWindowProvider interface {
 	ProvideNewOverlayWindowForHelp(values []contracts.KeyValue) tea.Model
+}
+
+type ErrorWindowProvider interface {
+	ProvideNewOverlayWindowForErrorMessagesProvider(text string) tea.Model
 }
 
 func (m *Model) KafkaTopicChosenNextActivePane() tea.Cmd {
@@ -200,10 +219,6 @@ func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName st
 	c[topicName] = append(t, partitions...)
 }
 
-type LocalStorage interface {
-	GetKafkaClusters() []*contracts.KafkaCluster
-}
-
 func InitialModel(ls LocalStorage) *Model {
 	model := &Model{
 		activePane:       CLUSTERS,
@@ -212,6 +227,7 @@ func InitialModel(ls LocalStorage) *Model {
 		kafkaPartitions:  make(map[string]map[string][]int),
 		IsLoadTopics:     make(map[string]bool),
 		IsLoadPartitions: make(map[string]map[string]bool),
+		localStorage:     ls,
 	}
 
 	return model
@@ -219,38 +235,115 @@ func InitialModel(ls LocalStorage) *Model {
 
 func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList,
 	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent,
-	overlayWindowProvider OverlayWindowProvider, helpWindow HelpWindowProvider) *Model {
+	overlayWindowProvider OverlayWindowForKafkaReadDetailedMessageProvider, helpWindow HelpWindowProvider,
+	errorWindow ErrorWindowProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
 	model.kafkaReadWriteTabs = kafkaReadWriteTabsComponent
 	model.overlayWindowProvider = overlayWindowProvider
 	model.helpWindow = helpWindow
+	model.errorWindow = errorWindow
 
 	return model
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.RequestBackgroundColor
+	slog.Info("Init in main model")
+	return tea.Batch(tea.RequestBackgroundColor, func() tea.Msg {
+		slog.Info("Init in main model: получение кластеров из локального хранилища")
+
+		kc, err := m.localStorage.GetKafkaClusters()
+
+		if err != nil {
+			slog.Error("Init in main model: ошибка при получении списка кластеров из локального хранилища")
+			return contracts.ErrorClusterLoadedEvent{Err: err}
+		}
+
+		clusterList := make([]*contracts.KafkaCluster, len(kc))
+		clusterMap := make(map[string]*contracts.KafkaCluster, len(kc))
+		for i, cluster := range kc {
+			clusterList[i] = cluster
+			clusterMap[cluster.Title] = cluster
+		}
+
+		return contracts.SuccessClusterLoadedEvent{KafkaClusters: clusterMap, KafkaClustersList: clusterList}
+	})
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case contracts.SuccessClusterLoadedEvent:
+		slog.Info("In main model: event contracts.ClusterLoadedEvent")
+		m.kafkaClusters = msg.KafkaClusters
+		return m, func() tea.Msg {
+			return contracts.UpdateListOfClustersEvent{Clusters: msg.KafkaClustersList}
+		}
+	case contracts.ErrorClusterLoadedEvent:
+		slog.Info("In main model: event contracts.ErrorClusterLoadedEvent")
+
+		switch m.activePane {
+		case CLUSTERS:
+			m.activePane = CLUSTERS_ERROR_WINDOW
+		case TOPICS:
+			m.activePane = TOPICS_ERROR_WINDOW
+		case PARTITIONS:
+			m.activePane = PARTITIONS_ERROR_WINDOW
+		case TABS_READ_WRITE:
+			m.activePane = TABS_READ_WRITE_ERROR_WINDOW
+		}
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+
+	case contracts.CloseWindowForErrorMessages:
+		slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+			switch m.activePane {
+			case CLUSTERS_ERROR_WINDOW:
+				m.activePane = CLUSTERS
+			case TOPICS_ERROR_WINDOW:
+				m.activePane = TOPICS
+			case PARTITIONS_ERROR_WINDOW:
+				m.activePane = PARTITIONS
+			case TABS_READ_WRITE_ERROR_WINDOW:
+				m.activePane = TABS_READ_WRITE
+			}
+		}
+
+		slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth after = " +
+			strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
 	case tea.BackgroundColorMsg:
 		m.backgroundColorMsg = msg.String()
-		debug.WriteDebugFile("in main: event BackgroundColorMsg = " + msg.String())
+		slog.Info("in main: event BackgroundColorMsg = " + msg.String())
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.width = msg.Width
-		debug.WriteDebugFile("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
+		slog.Info("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
 		return m, nil
 
 	case contracts.UserChosenKafkaCluster:
 		m.activePane = TOPICS
 		m.SelectedKafkaCluster = msg.ChosenCluster
-		debug.WriteDebugFile("in main: event contracts.UserChosenKafkaCluster: activePane = " + strconv.Itoa(int(m.activePane)) +
+		slog.Info("in main: event contracts.UserChosenKafkaCluster: activePane = " + strconv.Itoa(int(m.activePane)) +
 			", m.SelectedKafkaCluster = " + m.SelectedKafkaCluster)
 
 		return m, func() tea.Msg {
@@ -258,7 +351,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case contracts.UserWantsDeleteClusterFromList:
-		debug.WriteDebugFile("in main: event contracts.UserWantsDeleteClusterFromList")
+		slog.Info("in main: event contracts.UserWantsDeleteClusterFromList")
 		// m.activePane = CLUSTERS_DELETE_CLUSTER_WINDOW
 
 		// return m, m.stack.Push(m.deleteClusterWindow.ProvideNewOverlayWindowForDeleteCluster(msg.ChosenCluster), overlay.OverlayConfig{
@@ -269,24 +362,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// })
 
 	case contracts.CloseWindowForDetailedReadMessage:
-		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stack.Depth()))
+		slog.Info("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
 		var c tea.Cmd
 
-		if m.stack.Depth() > 0 {
-			_, c = m.stack.Pop()
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
 		}
 
-		if m.stack.Depth() == 0 {
-			debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth ZERO = " + strconv.Itoa(m.stack.Depth()))
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseOverlayWindow, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 			m.activePane = TABS_READ_WRITE
 		}
 
-		debug.WriteDebugFile("in main: event contracts.CloseOverlayWindow, depth after = " + strconv.Itoa(m.stack.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+		slog.Info("in main: event contracts.CloseOverlayWindow, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
 
 		return m, c
 	case tea.KeyPressMsg:
-		debug.WriteDebugFile("in main: нажата кнопка " + msg.Keystroke())
+		slog.Info("in main: нажата кнопка " + msg.Keystroke())
 
 		switch keypress := msg.String(); keypress {
 		case "esc":
@@ -306,7 +399,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "?":
 			m.isHelpWindowNeedToOpen = true
-			debug.WriteDebugFile("in main: выпущено событие CreateAskForHelpEvent")
+			slog.Info("in main: выпущено событие CreateAskForHelpEvent")
 			return m, contracts.CreateAskForHelpEvent()
 		}
 
@@ -326,10 +419,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activePane = TABS_READ_WRITE_HELP_WINDOW
 		}
 
-		debug.WriteDebugFile("in main: event contracts.HelpMessage, value = " + ", создание окна помощи, активная панель теперь " +
+		slog.Info("in main: event contracts.HelpMessage, value = " + ", создание окна помощи, активная панель теперь " +
 			strconv.Itoa(int(m.activePane)))
 
-		return m, m.stack.Push(m.helpWindow.ProvideNewOverlayWindowForHelp(msg.Values), overlay.OverlayConfig{
+		return m, m.stackOfOverlayWindows.Push(m.helpWindow.ProvideNewOverlayWindowForHelp(msg.Values), overlay.OverlayConfig{
 			Placement:           overlay.Center(),
 			DimOpacity:          0.35,
 			CloseOnEscape:       false,
@@ -337,16 +430,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 	case contracts.CloseWindowForHelp:
 		m.isHelpWindowNeedToOpen = false
-		debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth before = " + strconv.Itoa(m.stack.Depth()))
+		slog.Info("in main: event contracts.CloseWindowForHelp, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
 		var c tea.Cmd
 
-		if m.stack.Depth() > 0 {
-			_, c = m.stack.Pop()
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
 		}
 
-		if m.stack.Depth() == 0 {
-			debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth ZERO = " + strconv.Itoa(m.stack.Depth()))
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseWindowForHelp, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
 			switch m.activePane {
 			case CLUSTERS_HELP_WINDOW:
@@ -360,14 +453,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		debug.WriteDebugFile("in main: event contracts.CloseWindowForHelp, depth after = " + strconv.Itoa(m.stack.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+		slog.Info("in main: event contracts.CloseWindowForHelp, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
 
 		return m, c
-
 	case contracts.ReadMessagesTableChosenRow:
-		debug.WriteDebugFile("in main: event contracts.ReadMessagesTableChosenRow")
+		slog.Info("in main: event contracts.ReadMessagesTableChosenRow")
 		m.activePane = TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE
-		return m, m.stack.Push(m.overlayWindowProvider.ProvideNew(msg.Body, msg.Header, msg.Offset, msg.Datetime), overlay.OverlayConfig{
+		return m, m.stackOfOverlayWindows.Push(m.overlayWindowProvider.ProvideNewWindowForKafkaReadDetailedMessage(msg.Body, msg.Header, msg.Offset, msg.Datetime), overlay.OverlayConfig{
 			Placement:           overlay.Center(),
 			DimOpacity:          0.35,
 			CloseOnEscape:       false,
@@ -386,15 +478,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := m.kafkaPartitionList.Update(msg, m)
 		return m, tea.Batch(cmd)
 	case TABS_READ_WRITE:
-		debug.WriteDebugFile("in main: TABS_READ_WRITE")
+		slog.Info("in main: TABS_READ_WRITE")
 		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
 		return m, tea.Batch(cmd)
-	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW, TOPICS_HELP_WINDOW, PARTITIONS_HELP_WINDOW:
+	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW, TOPICS_HELP_WINDOW, PARTITIONS_HELP_WINDOW,
+		CLUSTERS_ERROR_WINDOW, TOPICS_ERROR_WINDOW, PARTITIONS_ERROR_WINDOW, TABS_READ_WRITE_ERROR_WINDOW:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in main: активная панель %v: event %v", m.activePane, msg)
-		debug.WriteDebugFile(buf.String())
+		slog.Info(buf.String())
 
-		cmd := m.stack.Update(msg)
+		cmd := m.stackOfOverlayWindows.Update(msg)
 		return m, tea.Batch(cmd)
 	}
 
@@ -467,8 +560,8 @@ func (m *Model) View() tea.View {
 
 	v3 := lipgloss.JoinHorizontal(lipgloss.Left, kclString, ktlString, kplString, kafkaReadWriteTabsString)
 
-	if m.stack.Depth() > 0 {
-		v4 := m.stack.CompositeView(v3, m.width, m.height)
+	if m.stackOfOverlayWindows.Depth() > 0 {
+		v4 := m.stackOfOverlayWindows.CompositeView(v3, m.width, m.height)
 		v4.AltScreen = true
 		return v4
 	} else {

@@ -14,10 +14,14 @@ type DB interface {
 	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
 }
 
-func (ls *LocalStorage) GetKafkaClusters() []*contracts.KafkaCluster {
-	a := ls.kafkaClusterProvider.GetKafkaClusters()
+func (ls *LocalStorage) GetKafkaClusters() ([]*contracts.KafkaCluster, error) {
+	a, err := ls.kafkaClusterProvider.GetKafkaClusters()
 
-	return a
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
 }
 
 func NewLocalStorage(kafkaClusterProvider contracts.KafkaClusterProvider, db DB) *LocalStorage {

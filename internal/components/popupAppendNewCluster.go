@@ -2,8 +2,8 @@ package components
 
 import (
 	"bytes"
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 
 	"fmt"
 
@@ -23,13 +23,13 @@ func (*OverlayWindowForAppendNewCluster) Init() tea.Cmd { return nil }
 func (m *OverlayWindowForAppendNewCluster) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "in OverlayWindowForAppendNewCluster: event %v", msg)
-	debug.WriteDebugFile(buf.String())
+	slog.Info(buf.String())
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in OverlayWindowForAppendNewCluster: event KeyPressMsg: %s", msg.String())
-		debug.WriteDebugFile(buf.String())
+		slog.Info(buf.String())
 
 		if msg.String() == "esc" {
 			return m, func() tea.Msg { return contracts.CloseWindowForAppendNewCluster{} }

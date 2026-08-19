@@ -2,8 +2,8 @@ package components
 
 import (
 	"fmt"
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"strconv"
 
@@ -271,7 +271,7 @@ func (kt *KafkaPartitionList) Update(msg tea.Msg, m *windows.Model) (tea.Model, 
 		}
 		return m, tea.Batch(cmds...)
 	case contracts.AskForHelp:
-		debug.WriteDebugFile("in kafkaPartitionList: event contracts.AskForHelp")
+		slog.Info("in kafkaPartitionList: event contracts.AskForHelp")
 		values := make([]contracts.KeyValue, 0)
 		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
 		// values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})

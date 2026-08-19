@@ -2,8 +2,8 @@ package components
 
 import (
 	"bytes"
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 
 	"fmt"
 
@@ -23,13 +23,13 @@ func (*OverlayWindowForMessages) Init() tea.Cmd { return nil }
 func (m *OverlayWindowForMessages) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "in OverlayWindowForMessages: event %v", msg)
-	debug.WriteDebugFile(buf.String())
+	slog.Info(buf.String())
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in OverlayWindowForMessages: event KeyPressMsg: %s", msg.String())
-		debug.WriteDebugFile(buf.String())
+		slog.Info(buf.String())
 
 		if msg.String() == "esc" {
 			return m, func() tea.Msg { return contracts.CloseWindowForDetailedReadMessage{} }
@@ -56,6 +56,6 @@ func CreateNewWindowForKafkaReadDetailedMessageProvider() *OverlayWindowForKafka
 	return &OverlayWindowForKafkaReadDetailedMessageProvider{}
 }
 
-func (o *OverlayWindowForKafkaReadDetailedMessageProvider) ProvideNew(body string, key string, offset string, datetime string) tea.Model {
+func (o *OverlayWindowForKafkaReadDetailedMessageProvider) ProvideNewWindowForKafkaReadDetailedMessage(body string, key string, offset string, datetime string) tea.Model {
 	return &OverlayWindowForMessages{key: key, body: body, offset: offset, datetime: datetime}
 }

@@ -103,7 +103,7 @@ func (k *kafkaClusters) Clusters() []*kafkaClusterDb {
 	return k.clusters
 }
 
-func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
+func (d *Db) GetKafkaClusters() ([]*contracts.KafkaCluster, error) {
 	clusters := make([]*contracts.KafkaCluster, 0, 1)
 	// clusters = append(clusters, &contracts.KafkaCluster{Title: "sfa", Url: "172.16.15.171:9093", Username: "SFA", Password: "SFADEV123", TrustStorePath: "./c/certificate.pem"})
 
@@ -114,6 +114,7 @@ func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
 
 	if err != nil {
 		slog.Error("Ошибка при получении кластеров из БД", "err", err)
+		return nil, err
 	}
 
 	for rows.Next() {
@@ -127,6 +128,7 @@ func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
 
 		if err != nil {
 			slog.Error("Ошибка при получении кластеров из БД 2", "err", err)
+			return nil, err
 		}
 
 		clusters = append(clusters, &contracts.KafkaCluster{Title: title, Url: url, TrustStorePath: trust_store_path, Username: username, Password: password})
@@ -139,7 +141,7 @@ func (d *Db) GetKafkaClusters() []*contracts.KafkaCluster {
 	// 	return true, nil
 	// }
 
-	return clusters
+	return clusters, nil
 }
 
 func (d *Db) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error {

@@ -34,6 +34,7 @@ type diContainer struct {
 	overlayWindowForAppendNewServerProvider    *components.OverlayWindowForAppendNewServerProvider
 	overlayWindowForHelpProvider               *components.OverlayWindowForHelpProvider
 	overlayWindowForDeleteNewServerProvider    *components.OverlayWindowForDeleteNewServerProvider
+	overlayWindowForErrorMessagesProvider      *components.OverlayWindowForErrorMessagesProvider
 
 	muAppConfig                                  sync.Mutex
 	muDb                                         sync.Mutex
@@ -52,6 +53,7 @@ type diContainer struct {
 	muOverlayWindowForAppendNewServerProvider    sync.Mutex
 	muOverlayWindowForHelpProvider               sync.Mutex
 	muOverlayWindowForDeleteNewServerProvider    sync.Mutex
+	muOverlayWindowForErrorMessagesProvider      sync.Mutex
 }
 
 func newDIContainer() *diContainer {
@@ -145,7 +147,7 @@ func (d *diContainer) FullModel() *windows.Model {
 		slog.Info("Init Full Model", "model", d.fullModel)
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
 			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider(),
-			d.OverlayWindowForHelpProvider())
+			d.OverlayWindowForHelpProvider(), d.WindowForErrorMessages())
 		d.fullModel = fullModel
 	}
 
@@ -162,7 +164,7 @@ func (d *diContainer) KafkaClusterListComponent() windows.KafkaClusterList {
 		}
 
 		slog.Info("Init KafkaClusterListComponent", "KafkaClusterListComponent", d.kafkaClusterList)
-		d.kafkaClusterList = components.CreateKafkaClustersListAddValues(d.LocalStorage(), d.Model())
+		d.kafkaClusterList = components.CreateKafkaClustersList()
 	}
 
 	return d.kafkaClusterList
@@ -378,4 +380,20 @@ func (d *diContainer) OverlayWindowForHelpProvider() *components.OverlayWindowFo
 	}
 
 	return d.overlayWindowForHelpProvider
+}
+
+func (d *diContainer) WindowForErrorMessages() *components.OverlayWindowForErrorMessagesProvider {
+	if d.overlayWindowForErrorMessagesProvider == nil {
+		d.muOverlayWindowForErrorMessagesProvider.Lock()
+		defer d.muOverlayWindowForErrorMessagesProvider.Unlock()
+
+		if d.overlayWindowForErrorMessagesProvider != nil {
+			return d.overlayWindowForErrorMessagesProvider
+		}
+
+		slog.Info("Init WindowForErrorMessages", "WindowForErrorMessages", d.overlayWindowForErrorMessagesProvider)
+		d.overlayWindowForErrorMessagesProvider = components.CreateNewOverlayWindowForErrorMessagesProvider()
+	}
+
+	return d.overlayWindowForErrorMessagesProvider
 }

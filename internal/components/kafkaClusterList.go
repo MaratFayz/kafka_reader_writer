@@ -1,8 +1,8 @@
 package components
 
 import (
+	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
 	"charm.land/bubbles/v2/key"
@@ -44,7 +44,7 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 		switch {
 		case key.Matches(msg, u.keys.Choose):
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
-				debug.WriteDebugFile("in kafkaClusterList: chosen cluster = " + i.Title() + ", emit event UserChosenKafkaCluster")
+				slog.Info("in kafkaClusterList: chosen cluster = " + i.Title() + ", emit event UserChosenKafkaCluster")
 
 				cmd := func() tea.Msg {
 					return contracts.UserChosenKafkaCluster{ChosenCluster: i.Title()}
@@ -58,7 +58,7 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 
 		case key.Matches(msg, u.keys.Remove):
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
-				debug.WriteDebugFile("in kafkaClusterList: chosen cluster to delete = " + i.Title() + ", emit event UserWantsDeleteClusterFromList")
+				slog.Info("in kafkaClusterList: chosen cluster to delete = " + i.Title() + ", emit event UserWantsDeleteClusterFromList")
 
 				cmd := func() tea.Msg {
 					return contracts.UserWantsDeleteClusterFromList{ChosenCluster: i.Title()}
@@ -194,39 +194,23 @@ func CreateKafkaClustersList() *KafkaClusterList {
 	return &KafkaClusterList{&list, delegateKeys, listKeys, &styles}
 }
 
-type LocalStorage interface {
-	GetKafkaClusters() []*contracts.KafkaCluster
-}
-
-func CreateKafkaClustersListAddValues(ls LocalStorage, model *windows.Model) *KafkaClusterList {
-	kafkaClusterList := CreateKafkaClustersList()
-
-	kc := ls.GetKafkaClusters()
-
-	clusterList := make([]*contracts.KafkaCluster, len(kc))
-	clusterMap := make(map[string]*contracts.KafkaCluster, len(kc))
-	for i, cluster := range kc {
-		clusterList[i] = cluster // Каждый элемент преобразуется отдельно
-		clusterMap[cluster.Title] = cluster
-	}
-	model.SetClusters(clusterMap)
-	for i, v := range clusterList {
-		kafkaClusterList.List.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
-	}
-
-	return kafkaClusterList
-}
-
 func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	kcl := kc.List
 	// keys := kc.ListKeys
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case contracts.UpdateListOfClustersEvent:
+		slog.Info("Event contracts.UpdateListOfClustersEvents in KafkaClusterList")
+
+		for i, v := range msg.Clusters {
+			kcl.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
+		}
+		return m, nil
 
 	case contracts.AskForHelp:
-		debug.WriteDebugFile("in kafkaClusterList: event contracts.AskForHelp")
+		slog.Info("in kafkaClusterList: event contracts.AskForHelp")
 		values := make([]contracts.KeyValue, 0)
 		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
 		values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})

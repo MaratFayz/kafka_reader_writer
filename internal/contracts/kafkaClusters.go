@@ -11,7 +11,7 @@ type KafkaCluster struct {
 }
 
 type KafkaClusterProvider interface {
-	GetKafkaClusters() []*KafkaCluster
+	GetKafkaClusters() ([]*KafkaCluster, error)
 }
 
 type UserChosenKafkaCluster struct {
@@ -20,4 +20,22 @@ type UserChosenKafkaCluster struct {
 
 type UserWantsDeleteClusterFromList struct {
 	ChosenCluster string
+}
+
+type UpdateListOfClustersEvent struct {
+	Clusters []*KafkaCluster
+}
+
+type ViewOfCluster struct {
+	title    string
+	subtitle string
+}
+
+type SuccessClusterLoadedEvent struct {
+	KafkaClusters     map[string]*KafkaCluster
+	KafkaClustersList []*KafkaCluster
+}
+
+type ErrorClusterLoadedEvent struct {
+	Err error
 }

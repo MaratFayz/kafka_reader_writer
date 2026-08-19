@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
-	"marat/fayz/kafka_reader_writer/internal/debug"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 
 	"charm.land/bubbles/v2/key"
@@ -266,7 +265,7 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 		}
 		return m, tea.Batch(cmds...)
 	case contracts.AskForHelp:
-		debug.WriteDebugFile("in kafkaTopicList: event contracts.AskForHelp")
+		slog.Info("in kafkaTopicList: event contracts.AskForHelp")
 		values := make([]contracts.KeyValue, 0)
 		values = append(values, contracts.KeyValue{Key: "?", Value: "Help window"})
 		// values = append(values, contracts.KeyValue{Key: "a", Value: "Append new cluster"})
