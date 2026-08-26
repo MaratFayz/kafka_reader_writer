@@ -1,6 +1,14 @@
 package contracts
 
-type CloseWindowForDeleteNewServer struct{}
+type ClientDisagreeDeleteCluster struct{}
+
+type ClientAgreeDeleteCluster struct {
+	Name string
+}
+
+type DeleteCluster struct {
+	Name string
+}
 
 // type ErrorMessage struct {
 // 	Text string

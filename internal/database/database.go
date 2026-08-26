@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"embed"
+	"errors"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
@@ -200,4 +201,34 @@ func (d *Db) GetMessages(kafkaCluster *contracts.KafkaCluster, topic string) ([]
 	}
 
 	return messages, nil
+}
+
+func (d *Db) DeleteKafkaCluster(clusterName string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	slog.Debug("DeleteKafkaCluster", "clusterName", clusterName)
+
+	res, err := d.conn.Exec(`
+		DELETE FROM clusters WHERE title = $1
+		`,
+		clusterName)
+
+	if err != nil {
+		slog.Error("Ошибка при удалении кластера из БД", "err", err)
+		return err
+	}
+
+	r, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Ошибка при удалении кластера из БД: получение затронутых строк", "err", err)
+		return err
+	}
+
+	if r == 0 {
+		slog.Error("Ошибка при удалении кластера из БД: строки незатронуты вообще", "r", r, "cluster", clusterName)
+		return errors.New("Ошибка при удалении кластера из БД: строки незатронуты вообще: имя кластера " + clusterName)
+	}
+
+	return nil
 }

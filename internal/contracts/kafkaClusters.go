@@ -46,3 +46,11 @@ type UserWantsEditClusterInList struct {
 
 type UserWantsAddClusterToList struct {
 }
+
+type ErrorDeleteClusterEvent struct {
+	Err error
+}
+
+type SuccessDeleteClusterEvent struct {
+	Name string
+}

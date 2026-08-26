@@ -16,6 +16,7 @@ type OverlayWindowForEditCluster struct {
 	body     string
 	offset   string
 	datetime string
+	cluster  *contracts.KafkaCluster
 }
 
 func (*OverlayWindowForEditCluster) Init() tea.Cmd { return nil }
@@ -56,6 +57,6 @@ func CreateNewOverlayWindowForEditClusterProvider() *OverlayWindowForEditCluster
 	return &OverlayWindowForEditClusterProvider{}
 }
 
-func (o *OverlayWindowForEditClusterProvider) ProvideNewOverlayWindowForEditCluster(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForEditCluster{key: key, body: body, offset: offset, datetime: datetime}
+func (o *OverlayWindowForEditClusterProvider) ProvideNewOverlayWindowForEditCluster(cluster *contracts.KafkaCluster) tea.Model {
+	return &OverlayWindowForEditCluster{cluster: cluster}
 }

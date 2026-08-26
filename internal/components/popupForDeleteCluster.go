@@ -11,7 +11,27 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+var (
+	buttonStyle = lipgloss.NewStyle().
+			Padding(0, 3).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240"))
+
+	activeButtonStyle = lipgloss.NewStyle().
+				Padding(0, 3).
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("#ff6b6b")).
+				Foreground(lipgloss.Color("#ff6b6b")).
+				Bold(true)
+
+	// Стиль для подсказки
+	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+)
+
 type OverlayWindowForDeleteNewServer struct {
+	selected int // 0 - левая кнопка, 1 - правая кнопка
+	Name     string
+
 	key      string
 	body     string
 	offset   string
@@ -31,26 +51,58 @@ func (m *OverlayWindowForDeleteNewServer) Update(msg tea.Msg) (tea.Model, tea.Cm
 		fmt.Fprintf(&buf, "in OverlayWindowForDeleteNewServer: event KeyPressMsg: %s", msg.String())
 		slog.Info(buf.String())
 
-		if msg.String() == "esc" {
-			return m, func() tea.Msg { return contracts.CloseWindowForDeleteNewServer{} }
+		switch msg.String() {
+		case "esc":
+
+		case "left":
+			// переключиться на левую кнопку (индекс 0)
+			if m.selected > 0 {
+				m.selected--
+			}
+			return m, nil
+
+		case "right":
+			// переключиться на правую кнопку (индекс 1)
+			if m.selected < 1 {
+				m.selected++
+			}
+			return m, nil
+
+		case "enter", " ":
+			// обработка нажатия выбранной кнопки
+			if m.selected == 0 {
+				slog.Info("Клиент хочет удалить кластер " + m.Name)
+				return m, func() tea.Msg { return contracts.ClientAgreeDeleteCluster{Name: m.Name} }
+			} else {
+				slog.Info("Клиент отказывается удалять кластер " + m.Name)
+				return m, func() tea.Msg { return contracts.ClientDisagreeDeleteCluster{} }
+			}
 		}
 	}
 	return m, nil
 }
 
 func (o *OverlayWindowForDeleteNewServer) View() tea.View {
-	s := lipgloss.NewStyle().
-		Width(34).
-		Height(3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
-		Align(lipgloss.Center, lipgloss.Center)
+	text := "Удалить кластер " + o.Name
 
-	return tea.NewView(lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
-		lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
-		lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
-		lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.datetime))))
+	// Создаём две кнопки с учётом выделения
+	var leftBtn, rightBtn string
+	if o.selected == 0 {
+		leftBtn = activeButtonStyle.Render("Левая")
+		rightBtn = buttonStyle.Render("Правая")
+	} else {
+		leftBtn = buttonStyle.Render("Левая")
+		rightBtn = activeButtonStyle.Render("Правая")
+	}
+
+	// Размещаем кнопки рядом
+	buttons := lipgloss.JoinHorizontal(lipgloss.Center, leftBtn, "  ", rightBtn)
+
+	// Подсказка по управлению
+	help := helpStyle.Render("←/→ для переключения, Enter/Пробел для нажатия, q/ctrl+c для выхода")
+
+	// Объединяем в вертикальный блок
+	return tea.NewView(lipgloss.JoinVertical(lipgloss.Center, text, buttons, help))
 }
 
 type OverlayWindowForDeleteNewServerProvider struct {
@@ -60,6 +112,6 @@ func CreateNewOverlayWindowForDeleteNewServerProvider() *OverlayWindowForDeleteN
 	return &OverlayWindowForDeleteNewServerProvider{}
 }
 
-func (o *OverlayWindowForDeleteNewServerProvider) ProvideNewOverlayWindowForDeleteNewServer() tea.Model {
-	return &OverlayWindowForDeleteNewServer{}
+func (o *OverlayWindowForDeleteNewServerProvider) ProvideNewOverlayWindowForDeleteNewServer(clusterName string) tea.Model {
+	return &OverlayWindowForDeleteNewServer{Name: clusterName}
 }

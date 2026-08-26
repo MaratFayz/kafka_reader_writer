@@ -6,3 +6,4 @@ main
 *.db
 *.log
 .DS_Store
+**/migrations/*_test.sql

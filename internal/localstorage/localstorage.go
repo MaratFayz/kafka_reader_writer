@@ -12,6 +12,7 @@ type LocalStorage struct {
 type DB interface {
 	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
 	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
+	DeleteKafkaCluster(clusterName string) error
 }
 
 func (ls *LocalStorage) GetKafkaClusters() ([]*contracts.KafkaCluster, error) {
@@ -34,4 +35,8 @@ func (ls *LocalStorage) SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaT
 
 func (ls *LocalStorage) GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error) {
 	return ls.db.GetMessages(cluster, topic)
+}
+
+func (ls *LocalStorage) DeleteKafkaCluster(clusterName string) error {
+	return ls.db.DeleteKafkaCluster(clusterName)
 }

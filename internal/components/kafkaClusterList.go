@@ -57,6 +57,8 @@ func (u *ufKafkaCluster) updateFunc(msg tea.Msg, m *list.Model) tea.Cmd {
 			return tea.Batch(cmds...)
 
 		case key.Matches(msg, u.keys.Remove):
+			slog.Info("in kafkaClusterList: нажата клавиша удаления кластера")
+
 			if i, ok := m.SelectedItem().(ItemKafkaCluster); ok {
 				slog.Info("in kafkaClusterList: chosen cluster to delete = " + i.Title() + ", emit event UserWantsDeleteClusterFromList")
 
