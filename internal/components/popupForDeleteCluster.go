@@ -60,6 +60,6 @@ func CreateNewOverlayWindowForDeleteNewServerProvider() *OverlayWindowForDeleteN
 	return &OverlayWindowForDeleteNewServerProvider{}
 }
 
-func (o *OverlayWindowForDeleteNewServerProvider) ProvideNewOverlayWindowForDeleteNewServer(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForDeleteNewServer{key: key, body: body, offset: offset, datetime: datetime}
+func (o *OverlayWindowForDeleteNewServerProvider) ProvideNewOverlayWindowForDeleteNewServer() tea.Model {
+	return &OverlayWindowForDeleteNewServer{}
 }

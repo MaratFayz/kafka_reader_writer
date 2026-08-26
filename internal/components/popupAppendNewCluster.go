@@ -11,16 +11,16 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-type OverlayWindowForAppendNewCluster struct {
+type OverlayWindowForAppendCluster struct {
 	key      string
 	body     string
 	offset   string
 	datetime string
 }
 
-func (*OverlayWindowForAppendNewCluster) Init() tea.Cmd { return nil }
+func (*OverlayWindowForAppendCluster) Init() tea.Cmd { return nil }
 
-func (m *OverlayWindowForAppendNewCluster) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *OverlayWindowForAppendCluster) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "in OverlayWindowForAppendNewCluster: event %v", msg)
 	slog.Info(buf.String())
@@ -38,7 +38,7 @@ func (m *OverlayWindowForAppendNewCluster) Update(msg tea.Msg) (tea.Model, tea.C
 	return m, nil
 }
 
-func (o *OverlayWindowForAppendNewCluster) View() tea.View {
+func (o *OverlayWindowForAppendCluster) View() tea.View {
 	s := lipgloss.NewStyle().
 		Width(34).
 		Height(3).
@@ -57,5 +57,5 @@ func CreateNewOverlayWindowForAppendNewServerProvider() *OverlayWindowForAppendN
 }
 
 func (o *OverlayWindowForAppendNewServerProvider) ProvideNew(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForAppendNewCluster{key: key, body: body, offset: offset, datetime: datetime}
+	return &OverlayWindowForAppendCluster{key: key, body: body, offset: offset, datetime: datetime}
 }

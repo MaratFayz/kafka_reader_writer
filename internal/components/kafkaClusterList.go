@@ -223,7 +223,7 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 		slog.Info("Event contracts.UpdateListOfClustersEvents in KafkaClusterList")
 		kcl.SetItems(make([]list.Item, 0))
 		kcl.SetFilterState(0)
-		kcl.SetFilterText("")
+		// kcl.SetFilterText("")
 
 		for i, v := range msg.Clusters {
 			kcl.InsertItem(i, NewItemKafkaCluster(v.Title, v.Url))
@@ -247,6 +247,7 @@ func (kc *KafkaClusterList) Update(msg tea.Msg, m *windows.Model) (tea.Model, te
 		switch {
 		case key.Matches(msg, kc.ListKeys.InsertItem):
 			cmd := func() tea.Msg {
+				slog.Info("in kafkaClusterList: event contracts.UserWantsAddClusterToList")
 				return contracts.UserWantsAddClusterToList{}
 			}
 			cmds = append(cmds, cmd)

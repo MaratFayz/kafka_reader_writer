@@ -35,6 +35,9 @@ type diContainer struct {
 	overlayWindowForHelpProvider               *components.OverlayWindowForHelpProvider
 	overlayWindowForDeleteNewServerProvider    *components.OverlayWindowForDeleteNewServerProvider
 	overlayWindowForErrorMessagesProvider      *components.OverlayWindowForErrorMessagesProvider
+	deleteClusterWindow                        *components.OverlayWindowForDeleteNewServerProvider
+	appendNewClusterWindow                     *components.OverlayWindowForAppendNewServerProvider
+	editClusterWindow                          *components.OverlayWindowForEditClusterProvider
 
 	muAppConfig                                  sync.Mutex
 	muDb                                         sync.Mutex
@@ -54,6 +57,9 @@ type diContainer struct {
 	muOverlayWindowForHelpProvider               sync.Mutex
 	muOverlayWindowForDeleteNewServerProvider    sync.Mutex
 	muOverlayWindowForErrorMessagesProvider      sync.Mutex
+	muDeleteClusterWindow                        sync.Mutex
+	muAppendNewClusterWindow                     sync.Mutex
+	muEditClusterWindow                          sync.Mutex
 }
 
 func newDIContainer() *diContainer {
@@ -147,7 +153,8 @@ func (d *diContainer) FullModel() *windows.Model {
 		slog.Info("Init Full Model", "model", d.fullModel)
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
 			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider(),
-			d.OverlayWindowForHelpProvider(), d.WindowForErrorMessages())
+			d.OverlayWindowForHelpProvider(), d.WindowForErrorMessages(), d.OverlayWindowForDeleteNewServerProvider(),
+			d.OverlayWindowForAppendNewServerProvider(), d.WindowForEditClusterProvider())
 		d.fullModel = fullModel
 	}
 
@@ -396,4 +403,52 @@ func (d *diContainer) WindowForErrorMessages() *components.OverlayWindowForError
 	}
 
 	return d.overlayWindowForErrorMessagesProvider
+}
+
+func (d *diContainer) WindowForDeleteNewServerProvider() *components.OverlayWindowForDeleteNewServerProvider {
+	if d.deleteClusterWindow == nil {
+		d.muDeleteClusterWindow.Lock()
+		defer d.muDeleteClusterWindow.Unlock()
+
+		if d.deleteClusterWindow != nil {
+			return d.deleteClusterWindow
+		}
+
+		slog.Info("Init WindowForDeleteNewServerProvider", "WindowForDeleteNewServerProvider", d.deleteClusterWindow)
+		d.deleteClusterWindow = components.CreateNewOverlayWindowForDeleteNewServerProvider()
+	}
+
+	return d.deleteClusterWindow
+}
+
+func (d *diContainer) WindowForAppendNewServerProvider() *components.OverlayWindowForAppendNewServerProvider {
+	if d.appendNewClusterWindow == nil {
+		d.muAppendNewClusterWindow.Lock()
+		defer d.muAppendNewClusterWindow.Unlock()
+
+		if d.appendNewClusterWindow != nil {
+			return d.appendNewClusterWindow
+		}
+
+		slog.Info("Init WindowForAppendNewServerProvider", "WindowForAppendNewServerProvider", d.appendNewClusterWindow)
+		d.appendNewClusterWindow = components.CreateNewOverlayWindowForAppendNewServerProvider()
+	}
+
+	return d.appendNewClusterWindow
+}
+
+func (d *diContainer) WindowForEditClusterProvider() *components.OverlayWindowForEditClusterProvider {
+	if d.editClusterWindow == nil {
+		d.muEditClusterWindow.Lock()
+		defer d.muEditClusterWindow.Unlock()
+
+		if d.editClusterWindow != nil {
+			return d.editClusterWindow
+		}
+
+		slog.Info("Init WindowForEditClusterProvider", "WindowForEditClusterProvider", d.editClusterWindow)
+		d.editClusterWindow = components.CreateNewOverlayWindowForEditClusterProvider()
+	}
+
+	return d.editClusterWindow
 }

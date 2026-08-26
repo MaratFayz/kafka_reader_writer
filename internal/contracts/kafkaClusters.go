@@ -39,3 +39,10 @@ type SuccessClusterLoadedEvent struct {
 type ErrorClusterLoadedEvent struct {
 	Err error
 }
+
+type UserWantsEditClusterInList struct {
+	ChosenCluster string
+}
+
+type UserWantsAddClusterToList struct {
+}

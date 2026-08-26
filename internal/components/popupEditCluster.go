@@ -56,6 +56,6 @@ func CreateNewOverlayWindowForEditClusterProvider() *OverlayWindowForEditCluster
 	return &OverlayWindowForEditClusterProvider{}
 }
 
-func (o *OverlayWindowForAppendNewServerProvider) ProvideNewOverlayWindowForEditCluster(body string, key string, offset string, datetime string) tea.Model {
-	return &OverlayWindowForAppendNewCluster{key: key, body: body, offset: offset, datetime: datetime}
+func (o *OverlayWindowForEditClusterProvider) ProvideNewOverlayWindowForEditCluster(body string, key string, offset string, datetime string) tea.Model {
+	return &OverlayWindowForEditCluster{key: key, body: body, offset: offset, datetime: datetime}
 }

@@ -54,6 +54,10 @@ type Model struct {
 	errorWindow ErrorWindowProvider
 
 	localStorage LocalStorage
+
+	deleteClusterWindow    OverlayWindowForDeleteNewServerProvider
+	appendNewClusterWindow OverlayWindowForAppendNewServerProvider
+	editClusterWindow      OverlayWindowForEditClusterProvider
 }
 
 type activePane int
@@ -159,6 +163,18 @@ type ErrorWindowProvider interface {
 	ProvideNewOverlayWindowForErrorMessagesProvider(text string) tea.Model
 }
 
+type OverlayWindowForDeleteNewServerProvider interface {
+	ProvideNewOverlayWindowForDeleteNewServer() tea.Model
+}
+
+type OverlayWindowForAppendNewServerProvider interface {
+	ProvideNew(body string, key string, offset string, datetime string) tea.Model
+}
+
+type OverlayWindowForEditClusterProvider interface {
+	ProvideNewOverlayWindowForEditCluster(body string, key string, offset string, datetime string) tea.Model
+}
+
 func (m *Model) KafkaTopicChosenNextActivePane() tea.Cmd {
 	m.activePane = PARTITIONS
 	return func() tea.Msg {
@@ -236,7 +252,9 @@ func InitialModel(ls LocalStorage) *Model {
 func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicListComponent KafkaTopicList,
 	kafkaPartitionListComponent KafkaPartitionList, kafkaReadWriteTabsComponent KafkaReadWriteTabsComponent,
 	overlayWindowProvider OverlayWindowForKafkaReadDetailedMessageProvider, helpWindow HelpWindowProvider,
-	errorWindow ErrorWindowProvider) *Model {
+	errorWindow ErrorWindowProvider, deleteClusterWindow OverlayWindowForDeleteNewServerProvider,
+	appendNewClusterWindow OverlayWindowForAppendNewServerProvider,
+	editClusterWindow OverlayWindowForEditClusterProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
@@ -244,6 +262,9 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 	model.overlayWindowProvider = overlayWindowProvider
 	model.helpWindow = helpWindow
 	model.errorWindow = errorWindow
+	model.deleteClusterWindow = deleteClusterWindow
+	model.appendNewClusterWindow = appendNewClusterWindow
+	model.editClusterWindow = editClusterWindow
 
 	return model
 }
@@ -300,7 +321,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				CloseOnEscape:       false,
 				CloseOnClickOutside: false,
 			})
-
 	case contracts.CloseWindowForErrorMessages:
 		slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
@@ -333,13 +353,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backgroundColorMsg = msg.String()
 		slog.Info("in main: event BackgroundColorMsg = " + msg.String())
 		return m, nil
-
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.width = msg.Width
 		slog.Info("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
 		return m, nil
-
 	case contracts.UserChosenKafkaCluster:
 		m.activePane = TOPICS
 		m.SelectedKafkaCluster = msg.ChosenCluster
@@ -349,18 +367,71 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			return initList{}
 		}
-
 	case contracts.UserWantsDeleteClusterFromList:
 		slog.Info("in main: event contracts.UserWantsDeleteClusterFromList")
-		// m.activePane = CLUSTERS_DELETE_CLUSTER_WINDOW
+		m.activePane = CLUSTERS_DELETE_CLUSTER_WINDOW
 
-		// return m, m.stack.Push(m.deleteClusterWindow.ProvideNewOverlayWindowForDeleteCluster(msg.ChosenCluster), overlay.OverlayConfig{
-		// 	Placement:           overlay.Center(),
-		// 	DimOpacity:          0.35,
-		// 	CloseOnEscape:       false,
-		// 	CloseOnClickOutside: false,
-		// })
+		return m, m.stackOfOverlayWindows.Push(m.deleteClusterWindow.ProvideNewOverlayWindowForDeleteNewServer(), overlay.OverlayConfig{
+			Placement:           overlay.Center(),
+			DimOpacity:          0.35,
+			CloseOnEscape:       false,
+			CloseOnClickOutside: false,
+		})
+	case contracts.CloseWindowForDeleteNewServer:
+		slog.Info("in main: event contracts.CloseWindowForDeleteNewServer, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseWindowForDeleteNewServer, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = CLUSTERS
+		}
+
+		slog.Info("in main: event contracts.CloseWindowForDeleteNewServer, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
+	case contracts.UserWantsEditClusterInList:
+		slog.Info("in main: event contracts.UserWantsEditClusterInList")
+	case contracts.CloseWindowForEditCluster:
+		slog.Info("in main: event contracts.CloseWindowForEditCluster, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseWindowForEditCluster, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = TABS_READ_WRITE
+		}
+
+		slog.Info("in main: event contracts.CloseWindowForEditCluster, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
+	case contracts.UserWantsAddClusterToList:
+		slog.Info("in main: event contracts.UserWantsAddClusterToList")
+	case contracts.CloseWindowForAppendNewCluster:
+		slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = TABS_READ_WRITE
+		}
+
+		slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		return m, c
 	case contracts.CloseWindowForDetailedReadMessage:
 		slog.Info("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
@@ -402,7 +473,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			slog.Info("in main: выпущено событие CreateAskForHelpEvent")
 			return m, contracts.CreateAskForHelpEvent()
 		}
-
 	case contracts.HelpMessage:
 		if m.isHelpWindowNeedToOpen == false {
 			return m, nil
@@ -482,7 +552,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := m.kafkaReadWriteTabs.Update(msg, m)
 		return m, tea.Batch(cmd)
 	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW, TOPICS_HELP_WINDOW, PARTITIONS_HELP_WINDOW,
-		CLUSTERS_ERROR_WINDOW, TOPICS_ERROR_WINDOW, PARTITIONS_ERROR_WINDOW, TABS_READ_WRITE_ERROR_WINDOW:
+		CLUSTERS_ERROR_WINDOW, TOPICS_ERROR_WINDOW, PARTITIONS_ERROR_WINDOW, TABS_READ_WRITE_ERROR_WINDOW, CLUSTERS_DELETE_CLUSTER_WINDOW:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in main: активная панель %v: event %v", m.activePane, msg)
 		slog.Info(buf.String())
