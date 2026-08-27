@@ -154,7 +154,7 @@ func (d *diContainer) FullModel() *windows.Model {
 		fullModel := windows.PostInitModel(d.Model(), d.KafkaClusterListComponent(), d.KafkaTopicListComponent(), d.KafkaPartitionListComponent(),
 			d.KafkaReadWriteTabsComponent(), d.OverlayWindowForKafkaReadDetailedMessageProvider(),
 			d.OverlayWindowForHelpProvider(), d.WindowForErrorMessages(), d.OverlayWindowForDeleteNewServerProvider(),
-			d.OverlayWindowForAppendNewServerProvider(), d.WindowForEditClusterProvider())
+			d.OverlayWindowForAppendNewServerProvider(), d.WindowForEditClusterProvider(), d.KafkaTopicsProvider())
 		d.fullModel = fullModel
 	}
 
@@ -187,13 +187,13 @@ func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
 		}
 
 		slog.Info("Init KafkaTopicListComponent", "KafkaTopicListComponent", d.kafkaTopicList)
-		d.kafkaTopicList = components.CreateKafkaTopicsList(d.Model(), d.KafkaTopicsProvider())
+		d.kafkaTopicList = components.CreateKafkaTopicsList()
 	}
 
 	return d.kafkaTopicList
 }
 
-func (d *diContainer) KafkaTopicsProvider() components.KafkaTopicsProvider {
+func (d *diContainer) KafkaTopicsProvider() windows.KafkaTopicsProvider {
 	slog.Info("Init KafkaTopicsProvider", "KafkaTopicsProvider", d.kafkaConnector)
 	return d.createKafkaConnector()
 }

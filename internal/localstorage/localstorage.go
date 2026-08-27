@@ -1,6 +1,7 @@
 package localstorage
 
 import (
+	"errors"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 )
 
@@ -38,5 +39,6 @@ func (ls *LocalStorage) GetMessages(cluster *contracts.KafkaCluster, topic strin
 }
 
 func (ls *LocalStorage) DeleteKafkaCluster(clusterName string) error {
-	return ls.db.DeleteKafkaCluster(clusterName)
+	// return ls.db.DeleteKafkaCluster(clusterName)
+	return errors.New("sdvsdvsd")
 }

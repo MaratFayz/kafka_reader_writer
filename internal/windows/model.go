@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"strconv"
+	"strings"
 	"sync"
 
 	list "charm.land/bubbles/v2/list"
@@ -58,6 +59,8 @@ type Model struct {
 	deleteClusterWindow    OverlayWindowForDeleteNewServerProvider
 	appendNewClusterWindow OverlayWindowForAppendNewServerProvider
 	editClusterWindow      OverlayWindowForEditClusterProvider
+
+	kafkaConnectorProvider KafkaTopicsProvider
 }
 
 type activePane int
@@ -65,6 +68,10 @@ type activePane int
 type LocalStorage interface {
 	GetKafkaClusters() ([]*contracts.KafkaCluster, error)
 	DeleteKafkaCluster(Name string) error
+}
+
+type KafkaTopicsProvider interface {
+	GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error)
 }
 
 const (
@@ -105,13 +112,6 @@ func (m *Model) GetKafkaTopics(title string) []string {
 	defer m.muKafkaTopics.Unlock()
 
 	return m.kafkaTopics[title]
-}
-
-func (m *Model) SetKafkaTopics(title string, topics []string) {
-	m.muKafkaTopics.Lock()
-	defer m.muKafkaTopics.Unlock()
-
-	m.kafkaTopics[title] = topics
 }
 
 func (m *Model) GetKafkaPartitions(title string, topic string) []int {
@@ -176,26 +176,11 @@ type OverlayWindowForEditClusterProvider interface {
 	ProvideNewOverlayWindowForEditCluster(cluster *contracts.KafkaCluster) tea.Model
 }
 
-func (m *Model) KafkaTopicChosenNextActivePane() tea.Cmd {
-	m.activePane = PARTITIONS
-	return func() tea.Msg {
-		return initList{}
-	}
-}
-
 type initList struct {
 }
 
 func (i initList) IsInitList() bool {
 	return true
-}
-
-func (m *Model) SetChosenKafkaTopic(selectedKafkaTopic string) {
-	m.SelectedKafkaTopic = selectedKafkaTopic
-}
-
-func (m *Model) SetTopicsForCluster(kafkaCluster string, topics []string) {
-	m.SetKafkaTopics(kafkaCluster, topics)
 }
 
 func (m *Model) KafkaPartitionChosenNextActivePane() tea.Cmd {
@@ -255,7 +240,7 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 	overlayWindowProvider OverlayWindowForKafkaReadDetailedMessageProvider, helpWindow HelpWindowProvider,
 	errorWindow ErrorWindowProvider, deleteClusterWindow OverlayWindowForDeleteNewServerProvider,
 	appendNewClusterWindow OverlayWindowForAppendNewServerProvider,
-	editClusterWindow OverlayWindowForEditClusterProvider) *Model {
+	editClusterWindow OverlayWindowForEditClusterProvider, kafkaConnectorProvider KafkaTopicsProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
@@ -266,6 +251,7 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 	model.deleteClusterWindow = deleteClusterWindow
 	model.appendNewClusterWindow = appendNewClusterWindow
 	model.editClusterWindow = editClusterWindow
+	model.kafkaConnectorProvider = kafkaConnectorProvider
 
 	return model
 }
@@ -315,17 +301,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return contracts.UpdateListOfClustersEvent{Clusters: msg.KafkaClustersList}
 		}
 	case contracts.ErrorClusterLoadedEvent:
-
-		switch m.activePane {
-		case CLUSTERS:
-			m.activePane = CLUSTERS_ERROR_WINDOW
-		case TOPICS:
-			m.activePane = TOPICS_ERROR_WINDOW
-		case PARTITIONS:
-			m.activePane = PARTITIONS_ERROR_WINDOW
-		case TABS_READ_WRITE:
-			m.activePane = TABS_READ_WRITE_ERROR_WINDOW
-		}
+		m.activePane = CLUSTERS_ERROR_WINDOW
 
 		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
 			overlay.OverlayConfig{
@@ -391,11 +367,48 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		slog.Info("in main: event WindowSizeMsg; h = " + strconv.Itoa(int(msg.Height)) + ", w = " + strconv.Itoa(int(msg.Width)))
 		return m, nil
 	case contracts.UserChosenKafkaCluster:
-		m.activePane = TOPICS
-		m.SelectedKafkaCluster = msg.ChosenCluster
 		slog.Info("in main: event contracts.UserChosenKafkaCluster: activePane = " + strconv.Itoa(int(m.activePane)) +
 			", m.SelectedKafkaCluster = " + m.SelectedKafkaCluster)
+		m.activePane = TOPICS
+		m.SelectedKafkaCluster = msg.ChosenCluster
 
+		v, ok := m.IsLoadTopics[m.SelectedKafkaCluster]
+
+		if !ok {
+			m.IsLoadTopics[m.SelectedKafkaCluster] = false
+			v = m.IsLoadTopics[m.SelectedKafkaCluster]
+		}
+
+		var cmd tea.Cmd
+		if v == false {
+			cmd = m.loadTopics(m.GetClusterByTitle(m.SelectedKafkaCluster))
+			m.IsLoadTopics[m.SelectedKafkaCluster] = true
+		} else {
+			cmd = m.showTopics(m.kafkaTopics[msg.ChosenCluster])
+		}
+
+		return m, cmd
+	case contracts.LoadingKafkaTopicErrMsg:
+		slog.Info("in main: event contracts.LoadingKafkaTopicErrMsg", "error", msg.Err)
+		m.activePane = TOPICS_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+	case contracts.LoadedKafkaTopicsMsg:
+		slog.Info("in main: event contracts.LoadedKafkaTopicsMsg: activePane = " + strconv.Itoa(int(m.activePane)) +
+			", loadedTopics = " + strings.Join(msg.Topics, ", "))
+		m.kafkaTopics[msg.Cluster] = msg.Topics
+
+		return m, m.showTopics(msg.Topics)
+	case contracts.UserChosenKafkaTopic:
+		slog.Info("in main: event contracts.UserChosenKafkaTopic: " + msg.Topic)
+		m.activePane = PARTITIONS
+		m.SelectedKafkaTopic = msg.Topic
 		return m, func() tea.Msg {
 			return initList{}
 		}
@@ -730,5 +743,23 @@ func (m *Model) View() tea.View {
 		vv.AltScreen = true
 
 		return vv
+	}
+}
+
+func (m *Model) loadTopics(cluster *contracts.KafkaCluster) tea.Cmd {
+	return func() tea.Msg {
+		topicNames, err := m.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
+		if err != nil {
+			slog.Error("Error during getting topic names for cluster", "cluster", cluster, "err", err)
+			return contracts.LoadingKafkaTopicErrMsg{Err: err}
+		}
+
+		return contracts.LoadedKafkaTopicsMsg{Cluster: cluster.Title, Topics: topicNames}
+	}
+}
+
+func (m *Model) showTopics(topics []string) tea.Cmd {
+	return func() tea.Msg {
+		return contracts.UpdateListOfTopicsEvent{Topics: topics}
 	}
 }
