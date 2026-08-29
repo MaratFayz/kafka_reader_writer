@@ -232,3 +232,86 @@ func (d *Db) DeleteKafkaCluster(clusterName string) error {
 
 	return nil
 }
+
+func (d *Db) SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res, err := d.conn.Exec(`
+	INSERT INTO clusters(
+			title, 
+			url, 
+			username, 
+			password,
+			trust_store_path
+	) 
+	VALUES (
+			$1,
+			$2,
+			$3,
+			$4,
+			$5
+	)`,
+		Title,
+		Url,
+		Username,
+		Password,
+		Trust_store_path,
+	)
+
+	if err != nil {
+		slog.Error("Ошибка при добавлении нового кластера в БД: запрос", "err", err)
+		return err
+	}
+
+	r, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Ошибка при добавлении нового кластера в БД: получение зааффекченных строк", "err", err)
+		return err
+	}
+
+	if r == 0 {
+		slog.Error("Ошибка при добавлении нового кластера в БД: заффекченных строк не обнаружено", "r", r)
+		return errors.New("Ошибка при добавлении нового кластера в БД: заффекченных строк не обнаружено")
+	}
+
+	return nil
+}
+
+func (d *Db) SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res, err := d.conn.Exec(`
+	UPDATE clusters SET
+			title = $1, 
+			url = $2, 
+			username = $3, 
+			password = $4,
+			trust_store_path = $5
+	)`,
+		Title,
+		Url,
+		Username,
+		Password,
+		Trust_store_path,
+	)
+
+	if err != nil {
+		slog.Error("Ошибка при правке кластера в БД: запрос", "err", err)
+		return err
+	}
+
+	r, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Ошибка при правке кластера в БД: получение зааффекченных строк", "err", err)
+		return err
+	}
+
+	if r == 0 {
+		slog.Error("Ошибка при правке кластера в БД: заффекченных строк не обнаружено", "r", r)
+		return errors.New("Ошибка при правке кластера в БД: заффекченных строк не обнаружено")
+	}
+
+	return nil
+}

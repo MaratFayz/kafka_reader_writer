@@ -14,6 +14,8 @@ type DB interface {
 	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
 	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
 	DeleteKafkaCluster(clusterName string) error
+	SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
+	SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
 }
 
 func (ls *LocalStorage) GetKafkaClusters() ([]*contracts.KafkaCluster, error) {
@@ -39,6 +41,15 @@ func (ls *LocalStorage) GetMessages(cluster *contracts.KafkaCluster, topic strin
 }
 
 func (ls *LocalStorage) DeleteKafkaCluster(clusterName string) error {
-	// return ls.db.DeleteKafkaCluster(clusterName)
-	return errors.New("sdvsdvsd")
+	return ls.db.DeleteKafkaCluster(clusterName)
+}
+
+func (ls *LocalStorage) SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
+	// return ls.db.SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username)
+	return errors.New("TEST errro")
+}
+
+func (ls *LocalStorage) SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
+	// return ls.db.SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username)
+	return errors.New("TEST errro")
 }

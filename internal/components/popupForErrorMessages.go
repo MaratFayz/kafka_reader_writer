@@ -49,7 +49,7 @@ func (o *OverlayWindowForErrorMessages) View() tea.View {
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Key", s.Render(o.key)),
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Body", s.Render(o.body)),
 			// lipgloss.JoinHorizontal(lipgloss.Center, "Offset", s.Render(o.offset)),
-			lipgloss.JoinHorizontal(lipgloss.Center, "DateTime", s.Render(o.Text))))
+			lipgloss.JoinHorizontal(lipgloss.Center, "Ошибка:", s.Render(o.Text))))
 }
 
 type OverlayWindowForErrorMessagesProvider struct {

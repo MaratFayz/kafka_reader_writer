@@ -2,12 +2,17 @@ package contracts
 
 type CloseWindowForEditCluster struct{}
 
-// type ErrorMessage struct {
-// 	Text string
-// }
+type ErrorSaveEditedClusterIntoLocalStorageEvent struct {
+	Err error
+}
 
-// func CreateErrorMessageEvent(text string) tea.Cmd {
-// 	return func() tea.Msg {
-// 		return ErrorMessage{Text: text}
-// 	}
-// }
+type SuccessSaveEditedClusterIntoLocalStorageEvent struct {
+}
+
+type UserConfirmEditClusterInList struct {
+	Title            string
+	Password         string
+	Trust_store_path string
+	Url              string
+	Username         string
+}

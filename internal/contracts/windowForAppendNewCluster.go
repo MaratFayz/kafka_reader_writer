@@ -1,13 +1,18 @@
 package contracts
 
-type CloseWindowForAppendNewCluster struct{}
+type UserRefuseAddClusterToList struct{}
 
-// type ErrorMessage struct {
-// 	Text string
-// }
+type UserConfirmAddNewClusterToList struct {
+	Title            string
+	Url              string
+	Username         string
+	Password         string
+	Trust_store_path string
+}
 
-// func CreateErrorMessageEvent(text string) tea.Cmd {
-// 	return func() tea.Msg {
-// 		return ErrorMessage{Text: text}
-// 	}
-// }
+type SuccessSaveNewClusterIntoLocalStorageEvent struct {
+}
+
+type ErrorSaveNewClusterIntoLocalStorageEvent struct {
+	Err error
+}

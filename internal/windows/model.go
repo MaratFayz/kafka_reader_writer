@@ -60,7 +60,9 @@ type Model struct {
 	appendNewClusterWindow OverlayWindowForAppendNewServerProvider
 	editClusterWindow      OverlayWindowForEditClusterProvider
 
-	kafkaConnectorProvider KafkaTopicsProvider
+	kafkaConnectorProvider       KafkaTopicsProvider
+	isAddingNewClusterInProgress bool
+	isEditingClusterInProgress   bool
 }
 
 type activePane int
@@ -68,6 +70,8 @@ type activePane int
 type LocalStorage interface {
 	GetKafkaClusters() ([]*contracts.KafkaCluster, error)
 	DeleteKafkaCluster(Name string) error
+	SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
+	SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
 }
 
 type KafkaTopicsProvider interface {
@@ -91,6 +95,8 @@ const (
 	CLUSTERS_APPEND_CLUSTER_WINDOW
 	CLUSTERS_DELETE_CLUSTER_WINDOW
 	CLUSTERS_EDIT_CLUSTER_WINDOW
+	CLUSTERS_APPEND_CLUSTER_WINDOW_ERROR_WINDOW
+	CLUSTERS_EDIT_CLUSTER_WINDOW_ERROR_WINDOW
 )
 
 func (m *Model) GetClusterByTitle(title string) *contracts.KafkaCluster {
@@ -290,6 +296,36 @@ var deleteCluster = func(clusterName string) tea.Cmd {
 	}
 }
 
+var addCluster = func(e contracts.UserConfirmAddNewClusterToList, m *Model) tea.Cmd {
+	return func() tea.Msg {
+		slog.Info("In main model: сохранение нового кластера в локальное хранилище", "e1", "contracts.UserConfirmAddNewClusterToList", "e", e)
+
+		err := m.localStorage.SaveNewKafkaCluster(e.Title, e.Password, e.Trust_store_path, e.Url, e.Username)
+
+		if err != nil {
+			slog.Error("In main model: ошибка при сохранении нового кластера в локальное хранилище")
+			return contracts.ErrorSaveNewClusterIntoLocalStorageEvent{Err: err}
+		}
+
+		return contracts.SuccessSaveNewClusterIntoLocalStorageEvent{}
+	}
+}
+
+var saveEditedCluster = func(e contracts.UserConfirmEditClusterInList, m *Model) tea.Cmd {
+	return func() tea.Msg {
+		slog.Info("In main model: сохранение изменённого кластера в локальное хранилище", "e1", "contracts.UserConfirmEditClusterInList", "e", e)
+
+		err := m.localStorage.SaveEditedKafkaCluster(e.Title, e.Password, e.Trust_store_path, e.Url, e.Username)
+
+		if err != nil {
+			slog.Error("In main model: ошибка при сохранении изменённого кластера в локальное хранилище")
+			return contracts.ErrorSaveEditedClusterIntoLocalStorageEvent{Err: err}
+		}
+
+		return contracts.SuccessSaveEditedClusterIntoLocalStorageEvent{}
+	}
+}
+
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slog.Info(fmt.Sprintf("In main model: event %v", msg))
 
@@ -334,23 +370,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		var c tea.Cmd
 
-		if m.stackOfOverlayWindows.Depth() > 0 {
-			_, c = m.stackOfOverlayWindows.Pop()
-		}
+		_, c = m.stackOfOverlayWindows.Pop()
 
-		if m.stackOfOverlayWindows.Depth() == 0 {
-			slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+		slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
-			switch m.activePane {
-			case CLUSTERS_ERROR_WINDOW:
-				m.activePane = CLUSTERS
-			case TOPICS_ERROR_WINDOW:
-				m.activePane = TOPICS
-			case PARTITIONS_ERROR_WINDOW:
-				m.activePane = PARTITIONS
-			case TABS_READ_WRITE_ERROR_WINDOW:
-				m.activePane = TABS_READ_WRITE
-			}
+		switch m.activePane {
+		case CLUSTERS_ERROR_WINDOW:
+			m.activePane = CLUSTERS
+		case TOPICS_ERROR_WINDOW:
+			m.activePane = TOPICS
+		case PARTITIONS_ERROR_WINDOW:
+			m.activePane = PARTITIONS
+		case TABS_READ_WRITE_ERROR_WINDOW:
+			m.activePane = TABS_READ_WRITE
+		case CLUSTERS_APPEND_CLUSTER_WINDOW_ERROR_WINDOW:
+			m.activePane = CLUSTERS_APPEND_CLUSTER_WINDOW
 		}
 
 		slog.Info("in main: event contracts.CloseWindowForErrorMessages, depth after = " +
@@ -381,7 +415,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		var cmd tea.Cmd
 		if v == false {
-			cmd = m.loadTopics(m.GetClusterByTitle(m.SelectedKafkaCluster))
+			cmd = m.loadTopics(m.kafkaClusters[m.SelectedKafkaCluster])
 			m.IsLoadTopics[m.SelectedKafkaCluster] = true
 		} else {
 			cmd = m.showTopics(m.kafkaTopics[msg.ChosenCluster])
@@ -477,20 +511,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return contracts.SuccessDeleteClusterEvent{Name: msg.Name}
 		}
 	case contracts.SuccessDeleteClusterEvent:
+		slog.Info("in main: event contracts.SuccessDeleteClusterEvent")
 		return m, uploadClusters(m)
-	case contracts.UserWantsEditClusterInList:
-		slog.Info("in main: event contracts.UserWantsEditClusterInList")
-		m.activePane = CLUSTERS_EDIT_CLUSTER_WINDOW
-
-		return m, m.stackOfOverlayWindows.Push(
-			m.editClusterWindow.ProvideNewOverlayWindowForEditCluster(m.kafkaClusters[msg.ChosenCluster]),
-			overlay.OverlayConfig{
-				Placement:           overlay.Center(),
-				DimOpacity:          0.35,
-				CloseOnEscape:       false,
-				CloseOnClickOutside: false,
-			},
-		)
 	case contracts.CloseWindowForEditCluster:
 		slog.Info("in main: event contracts.CloseWindowForEditCluster, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
@@ -518,8 +540,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			CloseOnEscape:       false,
 			CloseOnClickOutside: false,
 		})
-	case contracts.CloseWindowForAppendNewCluster:
-		slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+	case contracts.UserRefuseAddClusterToList:
+		slog.Info("in main: event contracts.UserRefuseAddClusterToList, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
 		var c tea.Cmd
 
@@ -528,13 +550,118 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.stackOfOverlayWindows.Depth() == 0 {
-			slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
-			m.activePane = TABS_READ_WRITE
+			slog.Info("in main: event contracts.UserRefuseAddClusterToList, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = CLUSTERS
 		}
 
-		slog.Info("in main: event contracts.CloseWindowForAppendNewCluster, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+		slog.Info("in main: event contracts.UserRefuseAddClusterToList, depth after = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
 
 		return m, c
+	case contracts.UserConfirmAddNewClusterToList:
+		slog.Info("in main: event contracts.UserConfirmAddNewClusterToList", "isAddingNewClusterInProgress", m.isAddingNewClusterInProgress)
+
+		if m.isAddingNewClusterInProgress == true {
+			slog.Info("in main: event contracts.UserConfirmAddNewClusterToList: ничего не отправляем",
+				"isAddingNewClusterInProgress", m.isAddingNewClusterInProgress)
+
+			return m, nil
+		}
+
+		slog.Info("in main: event contracts.UserConfirmAddNewClusterToList: сохраняем в БД",
+			"isAddingNewClusterInProgress", m.isAddingNewClusterInProgress)
+
+		m.isAddingNewClusterInProgress = true
+
+		return m, tea.Sequence(addCluster(msg, m))
+	case contracts.SuccessSaveNewClusterIntoLocalStorageEvent:
+		slog.Info("in main: event contracts.SuccessSaveClusterIntoLocalStorageEvent, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.SuccessSaveClusterIntoLocalStorageEvent, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = CLUSTERS
+		}
+
+		slog.Info("in main: event contracts.SuccessSaveClusterIntoLocalStorageEvent, depth after = " +
+			strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		slog.Info("contracts.SuccessSaveClusterIntoLocalStorageEvent", "c", msg)
+
+		return m, tea.Sequence(uploadClusters(m), c)
+	case contracts.ErrorSaveNewClusterIntoLocalStorageEvent:
+		m.activePane = CLUSTERS_APPEND_CLUSTER_WINDOW_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+	case contracts.UserWantsEditClusterInList:
+		slog.Info("in main: event contracts.UserWantsEditClusterInList")
+		m.activePane = CLUSTERS_EDIT_CLUSTER_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(
+			m.editClusterWindow.ProvideNewOverlayWindowForEditCluster(m.kafkaClusters[msg.ChosenCluster]),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			},
+		)
+	case contracts.UserConfirmEditClusterInList:
+		slog.Info("in main: event contracts.UserConfirmEditClusterInList", "isEditingClusterInProgress", m.isEditingClusterInProgress)
+
+		if m.isEditingClusterInProgress == true {
+			slog.Info("in main: event contracts.UserConfirmEditClusterInList: ничего не отправляем",
+				"isEditingClusterInProgress", m.isEditingClusterInProgress)
+
+			return m, nil
+		}
+
+		slog.Info("in main: event contracts.UserConfirmEditClusterInList: сохраняем в БД",
+			"isEditingClusterInProgress", m.isEditingClusterInProgress)
+
+		m.isEditingClusterInProgress = true
+
+		return m, tea.Sequence(saveEditedCluster(msg, m))
+	case contracts.SuccessSaveEditedClusterIntoLocalStorageEvent:
+		slog.Info("in main: event contracts.SuccessSaveEditedClusterIntoLocalStorageEvent, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+
+		var c tea.Cmd
+
+		if m.stackOfOverlayWindows.Depth() > 0 {
+			_, c = m.stackOfOverlayWindows.Pop()
+		}
+
+		if m.stackOfOverlayWindows.Depth() == 0 {
+			slog.Info("in main: event contracts.SuccessSaveEditedClusterIntoLocalStorageEvent, depth ZERO = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
+			m.activePane = CLUSTERS
+		}
+
+		slog.Info("in main: event contracts.SuccessSaveEditedClusterIntoLocalStorageEvent, depth after = " +
+			strconv.Itoa(m.stackOfOverlayWindows.Depth()) + ", m.activePane = " + strconv.Itoa(int(m.activePane)))
+
+		slog.Info("contracts.SuccessSaveEditedClusterIntoLocalStorageEvent", "c", msg)
+
+		return m, tea.Sequence(uploadClusters(m), c)
+	case contracts.ErrorSaveEditedClusterIntoLocalStorageEvent:
+		m.activePane = CLUSTERS_EDIT_CLUSTER_WINDOW_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
 	case contracts.CloseWindowForDetailedReadMessage:
 		slog.Info("in main: event contracts.CloseOverlayWindow, depth before = " + strconv.Itoa(m.stackOfOverlayWindows.Depth()))
 
@@ -656,7 +783,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd)
 	case TABS_READ_WRITE_WINDOW_DETAILED_MESSAGE, CLUSTERS_HELP_WINDOW, TOPICS_HELP_WINDOW, PARTITIONS_HELP_WINDOW,
 		CLUSTERS_ERROR_WINDOW, TOPICS_ERROR_WINDOW, PARTITIONS_ERROR_WINDOW, TABS_READ_WRITE_ERROR_WINDOW, CLUSTERS_DELETE_CLUSTER_WINDOW,
-		CLUSTERS_EDIT_CLUSTER_WINDOW, CLUSTERS_APPEND_CLUSTER_WINDOW:
+		CLUSTERS_EDIT_CLUSTER_WINDOW, CLUSTERS_APPEND_CLUSTER_WINDOW, CLUSTERS_APPEND_CLUSTER_WINDOW_ERROR_WINDOW,
+		CLUSTERS_EDIT_CLUSTER_WINDOW_ERROR_WINDOW:
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "in main: активная панель %v: event %v", m.activePane, msg)
 		slog.Info(buf.String())
