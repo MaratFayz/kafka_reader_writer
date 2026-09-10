@@ -44,7 +44,7 @@ func (u *ufKafkaTopic) updateFuncKafkaTopic(msg tea.Msg, m *list.Model) tea.Cmd 
 				title = i.Title()
 
 				return func() tea.Msg {
-					return contracts.UserChosenKafkaTopic{Topic: title}
+					return contracts.UserChosenKafkaTopic{ChosenTopic: title}
 				}
 			} else {
 				return nil
@@ -61,7 +61,7 @@ func newItemDelegateKafkaTopic(keys *DelegateKeyMapKafkaTopic, styles *StylesKaf
 
 	d.UpdateFunc = uf.updateFuncKafkaTopic
 
-	help := []key.Binding{keys.Choose, keys.Remove}
+	help := []key.Binding{keys.Choose}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help
@@ -76,7 +76,6 @@ func newItemDelegateKafkaTopic(keys *DelegateKeyMapKafkaTopic, styles *StylesKaf
 
 type DelegateKeyMapKafkaTopic struct {
 	Choose key.Binding
-	Remove key.Binding
 }
 
 // Additional short help entries. This satisfies the help.KeyMap interface and
@@ -84,7 +83,6 @@ type DelegateKeyMapKafkaTopic struct {
 func (d DelegateKeyMapKafkaTopic) ShortHelp() []key.Binding {
 	return []key.Binding{
 		d.Choose,
-		d.Remove,
 	}
 }
 
@@ -94,7 +92,6 @@ func (d DelegateKeyMapKafkaTopic) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
 			d.Choose,
-			d.Remove,
 		},
 	}
 }
@@ -105,40 +102,11 @@ func NewDelegateKeyMapKafkaTopic() *DelegateKeyMapKafkaTopic {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "choose"),
 		),
-		Remove: key.NewBinding(
-			key.WithKeys("x", "backspace"),
-			key.WithHelp("x", "delete"),
-		),
 	}
 }
 
 func newListKeyMapKafkaTopic() *ListKeyMapKafkaTopic {
-	return &ListKeyMapKafkaTopic{
-		InsertItem: key.NewBinding(
-			key.WithKeys("a"),
-			key.WithHelp("a", "add item"),
-		),
-		ToggleSpinner: key.NewBinding(
-			key.WithKeys("s"),
-			key.WithHelp("s", "toggle spinner"),
-		),
-		ToggleTitleBar: key.NewBinding(
-			key.WithKeys("T"),
-			key.WithHelp("T", "toggle title"),
-		),
-		ToggleStatusBar: key.NewBinding(
-			key.WithKeys("S"),
-			key.WithHelp("S", "toggle status"),
-		),
-		TogglePagination: key.NewBinding(
-			key.WithKeys("P"),
-			key.WithHelp("P", "toggle pagination"),
-		),
-		ToggleHelpMenu: key.NewBinding(
-			key.WithKeys("H"),
-			key.WithHelp("H", "toggle help"),
-		),
-	}
+	return &ListKeyMapKafkaTopic{}
 }
 
 type ListKeyMapKafkaTopic struct {
@@ -210,7 +178,6 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 	var cmds []tea.Cmd
 
 	kcl := kt.List
-	delegateKeys := kt.DelegateKeys
 
 	switch msg := msg.(type) {
 	case contracts.AskForHelp:
@@ -222,7 +189,6 @@ func (kt *KafkaTopicList) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.
 
 		return m, contracts.CreateHelpMessageEvent(values)
 	case contracts.UpdateListOfTopicsEvent:
-		delegateKeys.Remove.SetEnabled(true)
 		kcl.SetItems(make([]list.Item, 0))
 		for i, sm := range msg.Topics {
 			newItem := NewItemKafkaTopic(sm, "")

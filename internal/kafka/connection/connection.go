@@ -142,12 +142,12 @@ func createConnection(username, password, certificateFilePath, brokerUrl string)
 	return conn, nil
 }
 
-func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) []int {
+func (k *KafkaConnectorProvider) GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) ([]int, error) {
 	t := k.partitions[cluster.Title]
 
 	t2 := t[topicName]
 
-	return t2
+	return t2, nil
 }
 
 func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error {

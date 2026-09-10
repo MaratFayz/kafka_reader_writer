@@ -4,15 +4,17 @@ type UpdateListOfTopicsEvent struct {
 	Topics []string
 }
 
-type LoadingKafkaTopicErrMsg struct {
+type ErrorLoadedKafkaTopicsErrMsg struct {
 	Err error
 }
 
-type LoadedKafkaTopicsMsg struct {
-	Cluster string
+type SuccessLoadedKafkaTopicsMsg struct {
+	Cluster *KafkaCluster
 	Topics  []string
+	//	KafkaClusters     map[string]*KafkaCluster
+	// KafkaClustersList []*KafkaCluster
 }
 
 type UserChosenKafkaTopic struct {
-	Topic string
+	ChosenTopic string
 }

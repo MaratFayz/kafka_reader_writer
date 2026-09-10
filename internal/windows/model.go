@@ -60,7 +60,7 @@ type Model struct {
 	appendNewClusterWindow OverlayWindowForAppendNewServerProvider
 	editClusterWindow      OverlayWindowForEditClusterProvider
 
-	kafkaConnectorProvider       KafkaTopicsProvider
+	kafkaConnectorProvider       KafkaProvider
 	isAddingNewClusterInProgress bool
 	isEditingClusterInProgress   bool
 }
@@ -74,8 +74,9 @@ type LocalStorage interface {
 	SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
 }
 
-type KafkaTopicsProvider interface {
+type KafkaProvider interface {
 	GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error)
+	GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) ([]int, error)
 }
 
 const (
@@ -189,17 +190,6 @@ func (i initList) IsInitList() bool {
 	return true
 }
 
-func (m *Model) KafkaPartitionChosenNextActivePane() tea.Cmd {
-	m.activePane = TABS_READ_WRITE
-	return func() tea.Msg {
-		return initList{}
-	}
-}
-
-func (m *Model) SetChosenKafkaPartition(selectedKafkaPartition string) {
-	m.SelectedKafkaPartition = selectedKafkaPartition
-}
-
 func (m *Model) SetPartitionsForClusterAndTopic(clusterName string, topicName string, partitions []int) {
 	m.muKafkaClusters.Lock()
 	m.muKafkaPartitions.Lock()
@@ -246,7 +236,7 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 	overlayWindowProvider OverlayWindowForKafkaReadDetailedMessageProvider, helpWindow HelpWindowProvider,
 	errorWindow ErrorWindowProvider, deleteClusterWindow OverlayWindowForDeleteNewServerProvider,
 	appendNewClusterWindow OverlayWindowForAppendNewServerProvider,
-	editClusterWindow OverlayWindowForEditClusterProvider, kafkaConnectorProvider KafkaTopicsProvider) *Model {
+	editClusterWindow OverlayWindowForEditClusterProvider, kafkaConnectorProvider KafkaProvider) *Model {
 	model.kafkaClusterList = kafkaClusterList
 	model.kafkaTopicList = kafkaTopicListComponent
 	model.kafkaPartitionList = kafkaPartitionListComponent
@@ -264,12 +254,12 @@ func PostInitModel(model *Model, kafkaClusterList KafkaClusterList, kafkaTopicLi
 
 var uploadClusters = func(m *Model) tea.Cmd {
 	return func() tea.Msg {
-		slog.Info("Init in main model: получение кластеров из локального хранилища")
+		slog.Info("uploadClusters in main model: получение кластеров из локального хранилища")
 
 		kc, err := m.localStorage.GetKafkaClusters()
 
 		if err != nil {
-			slog.Error("Init in main model: ошибка при получении списка кластеров из локального хранилища")
+			slog.Error("uploadClusters in main model: ошибка при получении списка кластеров из локального хранилища")
 			return contracts.ErrorClusterLoadedEvent{Err: err}
 		}
 
@@ -281,6 +271,25 @@ var uploadClusters = func(m *Model) tea.Cmd {
 		}
 
 		return contracts.SuccessClusterLoadedEvent{KafkaClusters: clusterMap, KafkaClustersList: clusterList}
+	}
+}
+
+var loadPartitions = func(m *Model, cluster *contracts.KafkaCluster, topicName string) tea.Cmd {
+	return func() tea.Msg {
+		partitions, err := m.kafkaConnectorProvider.GetPartitionsByClusterNameAndTopic(topicName, cluster)
+
+		if err != nil {
+			slog.Error("loadPartitions in main model: ошибка при получении списка партиций из кафки")
+			return contracts.ErrorLoadedKafkaPartitionsErrMsg{Err: err}
+		}
+
+		return contracts.SuccessLoadedKafkaPartitionsMsg{Cluster: cluster.Title, Topic: topicName, Partitions: partitions}
+	}
+}
+
+var showPartitions = func(topic string, partitions []int) tea.Cmd {
+	return func() tea.Msg {
+		return contracts.UpdateListOfPartitionsEvent{Topic: topic, Partitions: partitions}
 	}
 }
 
@@ -422,8 +431,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, cmd
-	case contracts.LoadingKafkaTopicErrMsg:
-		slog.Info("in main: event contracts.LoadingKafkaTopicErrMsg", "error", msg.Err)
+	case contracts.ErrorLoadedKafkaTopicsErrMsg:
+		slog.Info("in main: event contracts.ErrorLoadedKafkaTopicsErrMsg", "error", msg.Err)
 		m.activePane = TOPICS_ERROR_WINDOW
 
 		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
@@ -433,19 +442,78 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				CloseOnEscape:       false,
 				CloseOnClickOutside: false,
 			})
-	case contracts.LoadedKafkaTopicsMsg:
-		slog.Info("in main: event contracts.LoadedKafkaTopicsMsg: activePane = " + strconv.Itoa(int(m.activePane)) +
+	case contracts.SuccessLoadedKafkaTopicsMsg:
+		slog.Info("in main: event contracts.SuccessLoadedKafkaTopicsMsg: activePane = " + strconv.Itoa(int(m.activePane)) +
 			", loadedTopics = " + strings.Join(msg.Topics, ", "))
-		m.kafkaTopics[msg.Cluster] = msg.Topics
+		m.kafkaTopics[msg.Cluster.Title] = msg.Topics
 
 		return m, m.showTopics(msg.Topics)
 	case contracts.UserChosenKafkaTopic:
-		slog.Info("in main: event contracts.UserChosenKafkaTopic: " + msg.Topic)
+		slog.Info("in main: event contracts.UserChosenKafkaTopic: " + msg.ChosenTopic)
 		m.activePane = PARTITIONS
-		m.SelectedKafkaTopic = msg.Topic
+		m.SelectedKafkaTopic = msg.ChosenTopic
+
+		mapTopics, ok := m.IsLoadPartitions[m.SelectedKafkaCluster]
+
+		if !ok {
+			m.IsLoadPartitions[m.SelectedKafkaCluster] = make(map[string]bool)
+			mapTopics = m.IsLoadPartitions[m.SelectedKafkaCluster]
+		}
+
+		arePartitionsLoadedForClusterTopic, ok := mapTopics[m.SelectedKafkaTopic]
+
+		if !ok {
+			mapTopics[m.SelectedKafkaTopic] = false
+			arePartitionsLoadedForClusterTopic = mapTopics[m.SelectedKafkaTopic]
+		}
+
+		var cmd tea.Cmd
+		if arePartitionsLoadedForClusterTopic == false {
+			cmd = loadPartitions(m, m.kafkaClusters[m.SelectedKafkaCluster], m.SelectedKafkaTopic)
+			m.IsLoadPartitions[m.SelectedKafkaCluster][m.SelectedKafkaTopic] = true
+		} else {
+			cmd = showPartitions(m.SelectedKafkaTopic, m.kafkaPartitions[m.SelectedKafkaCluster][m.SelectedKafkaTopic])
+		}
+
+		return m, cmd
+	case contracts.UserChosenPartition:
+		m.SelectedKafkaPartition = msg.Partition
+		m.activePane = TABS_READ_WRITE
 		return m, func() tea.Msg {
 			return initList{}
 		}
+	case contracts.SuccessLoadedKafkaPartitionsMsg:
+		partitionsString := make([]string, 0, len(msg.Partitions))
+		for _, p := range msg.Partitions {
+			partitionsString = append(partitionsString, strconv.Itoa(p))
+		}
+
+		slog.Info("in main: event contracts.LoadedKafkaPartitionsMsg: activePane = " + strconv.Itoa(int(m.activePane)) +
+			", loadedPartitions = " + strings.Join(partitionsString, ", "))
+
+		clusterName := msg.Cluster
+		topicName := msg.Topic
+		partitions := msg.Partitions
+
+		if m.kafkaPartitions == nil {
+			m.kafkaPartitions = make(map[string]map[string][]int)
+		}
+
+		c, ok := m.kafkaPartitions[clusterName]
+		if !ok {
+			m.kafkaPartitions[clusterName] = make(map[string][]int)
+		}
+		c = m.kafkaPartitions[clusterName]
+
+		t, ok := c[topicName]
+		if !ok {
+			c[topicName] = make([]int, 0)
+		}
+		t = c[topicName]
+
+		c[topicName] = append(t, partitions...)
+
+		return m, showPartitions(msg.Topic, msg.Partitions)
 	case contracts.UserWantsDeleteClusterFromList:
 		slog.Info("in main: event contracts.UserWantsDeleteClusterFromList")
 		m.activePane = CLUSTERS_DELETE_CLUSTER_WINDOW
@@ -879,10 +947,10 @@ func (m *Model) loadTopics(cluster *contracts.KafkaCluster) tea.Cmd {
 		topicNames, err := m.kafkaConnectorProvider.GetTopicsByClusterName(cluster)
 		if err != nil {
 			slog.Error("Error during getting topic names for cluster", "cluster", cluster, "err", err)
-			return contracts.LoadingKafkaTopicErrMsg{Err: err}
+			return contracts.ErrorLoadedKafkaTopicsErrMsg{Err: err}
 		}
 
-		return contracts.LoadedKafkaTopicsMsg{Cluster: cluster.Title, Topics: topicNames}
+		return contracts.SuccessLoadedKafkaTopicsMsg{Cluster: cluster, Topics: topicNames}
 	}
 }
 

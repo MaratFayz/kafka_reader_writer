@@ -193,7 +193,7 @@ func (d *diContainer) KafkaTopicListComponent() *components.KafkaTopicList {
 	return d.kafkaTopicList
 }
 
-func (d *diContainer) KafkaTopicsProvider() windows.KafkaTopicsProvider {
+func (d *diContainer) KafkaTopicsProvider() windows.KafkaProvider {
 	slog.Info("Init KafkaTopicsProvider", "KafkaTopicsProvider", d.kafkaConnector)
 	return d.createKafkaConnector()
 }
@@ -232,7 +232,7 @@ func (d *diContainer) KafkaPartitionListComponent() *components.KafkaPartitionLi
 		}
 
 		slog.Info("Init KafkaPartitionListComponent", "KafkaPartitionListComponent", d.kafkaPartitionList)
-		d.kafkaPartitionList = components.CreateKafkaPartitionsList(d.Model(), d.KafkaPartitionsProvider())
+		d.kafkaPartitionList = components.CreateKafkaPartitionsList()
 	}
 
 	return d.kafkaPartitionList
