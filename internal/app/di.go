@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/closer"
 	"marat/fayz/kafka_reader_writer/internal/components"
-	readwritetabs "marat/fayz/kafka_reader_writer/internal/components/readWriteTabs"
+	"marat/fayz/kafka_reader_writer/internal/components/readwritetabs"
 	"marat/fayz/kafka_reader_writer/internal/config"
 	"marat/fayz/kafka_reader_writer/internal/database"
 	"marat/fayz/kafka_reader_writer/internal/kafka/connection"
