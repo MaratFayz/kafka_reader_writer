@@ -1,13 +1,42 @@
-# yaml-language-server: $schema=https://taskfile.dev/schema.json
-
-version: '3'
+version: "3"
 
 tasks:
-  run:
+  install:
+    desc: Установка инструментов и зависимостей
     cmds:
-      - go run ./cmd/krw/main.go
+      - task: install:lint
+      - task: install:sqlite
+      - task: check:compiler
+      - task: install:compiler
 
-  build:
+  install:lint:
+    desc: Установка golangci-lint (go install, кросс-платформенно)
+    env:
+      GOBIN: "{{.HOME}}/go/bin"
     cmds:
-      - go vet ./...
-      - go build ./cmd/krw
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+  install:sqlite:
+    desc: Скачивание зависимостей, включая go-sqlite3 (cgo)
+    cmds:
+      - go mod download
+
+  check:compiler:
+    desc: Проверка наличия C-компилятора (требуется cgo/go-sqlite3)
+    cmds:
+      - cc --version
+
+  install:compiler:
+    desc: Установка C-компилятора под текущую платформу (пропускается, если cc уже есть)
+    status:
+      - cc --version
+    cmds:
+      - cmd: xcode-select --install
+        platforms: [darwin]
+      - cmd: sudo apt-get install -y build-essential
+        platforms: [linux]
+
+  lint:
+    desc: Запуск линтера
+    cmds:
+      - export PATH="$PATH:$HOME/go/bin" && golangci-lint run
