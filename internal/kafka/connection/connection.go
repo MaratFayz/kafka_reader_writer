@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"log/slog"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"os"
@@ -169,13 +168,15 @@ func (k *KafkaConnectorProvider) Send(kafkaCluster *contracts.KafkaCluster, kafk
 		slog.Error("Connection is not initiated", "err", err)
 		return err
 	}
+	defer conn.Close()
 
 	_, err = conn.WriteMessages(
 		kafka.Message{Topic: kafkaTopic, Value: []byte(textToSend)},
 	)
 
 	if err != nil {
-		log.Fatal("failed to write messages:", err) //         2026…2026/07/19 23:10:29 failed to write messages:[29] Topic Authorization Failed: the client is not authorized to access the requested topic                       │  │
+		slog.Error("failed to write messages", "err", err)
+		return err
 	}
 
 	return nil
