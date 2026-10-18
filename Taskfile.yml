@@ -40,3 +40,16 @@ tasks:
     desc: Запуск линтера
     cmds:
       - export PATH="$PATH:$HOME/go/bin" && golangci-lint run
+
+  build:
+    desc: Сборка проекта
+    cmds:
+      - go vet ./...
+      - go build -o ./out/krw ./cmd/krw
+    deps:
+      - clean
+      - lint
+
+  clean:
+    cmds: 
+      - rm -rf ./out
