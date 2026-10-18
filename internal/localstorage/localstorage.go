@@ -1,7 +1,6 @@
 package localstorage
 
 import (
-	"errors"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 )
 
@@ -45,11 +44,9 @@ func (ls *LocalStorage) DeleteKafkaCluster(clusterName string) error {
 }
 
 func (ls *LocalStorage) SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
-	// return ls.db.SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username)
-	return errors.New("TEST errro")
+	return ls.db.SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username)
 }
 
 func (ls *LocalStorage) SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error {
-	// return ls.db.SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username)
-	return errors.New("TEST errro")
+	return ls.db.SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username)
 }

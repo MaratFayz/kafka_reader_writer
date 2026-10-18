@@ -289,7 +289,7 @@ func (d *Db) SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, User
 			username = $3, 
 			password = $4,
 			trust_store_path = $5
-	)`,
+	`,
 		Title,
 		Url,
 		Username,
