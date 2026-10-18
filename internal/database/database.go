@@ -60,7 +60,7 @@ func CreateOrGetDb(databaseUrl string) (*Db, error) {
 	filePath := "database.db"
 	err := os.Remove(filePath)
 	if err != nil {
-		slog.Error("Error deleting file:", err)
+		slog.Error("Error deleting file:", "err", err)
 	} else {
 		slog.Info("File successfully deleted")
 	}
