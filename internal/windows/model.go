@@ -72,11 +72,15 @@ type LocalStorage interface {
 	DeleteKafkaCluster(Name string) error
 	SaveNewKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
 	SaveEditedKafkaCluster(Title, Password, Trust_store_path, Url, Username string) error
+	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
+	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
 }
 
 type KafkaProvider interface {
 	GetTopicsByClusterName(clusterName *contracts.KafkaCluster) ([]string, error)
 	GetPartitionsByClusterNameAndTopic(topicName string, cluster *contracts.KafkaCluster) ([]int, error)
+	Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error
+	Read(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, numberOfReadMessages int) ([]*contracts.ReadMessagesRow, error)
 }
 
 const (
@@ -335,6 +339,28 @@ var saveEditedCluster = func(e contracts.UserConfirmEditClusterInList, m *Model)
 	}
 }
 
+var getMessagesFromHistoryCmd = func(m *Model, topic string) tea.Cmd {
+	return func() tea.Msg {
+		slog.Info("In main model: получение сообщений из локального хранилища", "e1", "contracts.getMessagesFromHistoryCmd")
+
+		cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
+
+		messages, err := m.localStorage.GetMessages(cluster, topic)
+
+		if err != nil {
+			return contracts.ErrorWhenGetMessagesFromHistory{Error: err}
+		}
+
+		return contracts.SuccessWhenGetMessagesFromHistory{Messages: messages}
+	}
+}
+
+var stopSpinner = func() tea.Cmd {
+	return func() tea.Msg {
+		return contracts.StopSpinningWhenReadMessagesFromKafka{}
+	}
+}
+
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slog.Info(fmt.Sprintf("In main model: event %v", msg))
 
@@ -346,6 +372,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return contracts.UpdateListOfClustersEvent{Clusters: msg.KafkaClustersList}
 		}
 	case contracts.ErrorClusterLoadedEvent:
+		slog.Info("In main model: event contracts.ErrorClusterLoadedEvent")
 		m.activePane = CLUSTERS_ERROR_WINDOW
 
 		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Err.Error()),
@@ -477,11 +504,147 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case contracts.UserChosenPartition:
+		slog.Info("In main model: event contracts.UserChosenPartition")
+
 		m.SelectedKafkaPartition = msg.Partition
 		m.activePane = TABS_READ_WRITE
+
+		return m, tea.Sequence(func() tea.Msg {
+			slog.Info("In main model: event contracts.ClearHistoryMessagesTableEvent")
+			return contracts.ClearHistoryMessagesTableEvent{}
+		}, getMessagesFromHistoryCmd(m, m.SelectedKafkaTopic))
+	case contracts.ErrorWhenGetMessagesFromHistory:
+		slog.Info("In main model: event contracts.ErrorWhenGetMessagesFromHistory")
+
+		m.activePane = TABS_READ_WRITE_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Error.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+	case contracts.SuccessWhenGetMessagesFromHistory:
+		slog.Info("In main model: event contracts.SuccessWhenGetMessagesFromHistory")
+
 		return m, func() tea.Msg {
-			return initList{}
+			slog.Info("In main model: event contracts.UpdateListOfMessagesFromHistoryEvent")
+			return contracts.UpdateListOfMessagesFromHistoryEvent{Messages: msg.Messages}
 		}
+	case contracts.SendMessageToKafka:
+		slog.Info("In main model: event contracts.SendMessageToKafka")
+
+		cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
+		topic := m.SelectedKafkaTopic
+		partition := m.SelectedKafkaPartition
+		message := msg.Message
+
+		sendMessageCmd := func(cluster *contracts.KafkaCluster, topic, partition, message string) tea.Cmd {
+			return func() tea.Msg {
+				slog.Info("In main model: event sendMessageCmd")
+				err := m.kafkaConnectorProvider.Send(cluster, topic, partition, message)
+
+				if err != nil {
+					return contracts.ErrorWhenSendMessageToKafka{Error: err}
+				}
+
+				return contracts.SuccessWhenSendMessageToKafka{}
+			}
+		}
+
+		saveMessageToHistoryCmd := func(cluster *contracts.KafkaCluster, topic, message string) tea.Cmd {
+			return func() tea.Msg {
+				slog.Info("In main model: event saveMessageToHistoryCmd")
+				err := m.localStorage.SaveMessage(cluster, topic, message)
+
+				if err != nil {
+					return contracts.ErrorWhenSaveMessageToHistory{Error: err}
+				}
+
+				return contracts.SuccessWhenSaveMessageToHistory{}
+			}
+		}
+
+		return m, tea.Sequence(sendMessageCmd(cluster, topic, partition, message), saveMessageToHistoryCmd(cluster, topic, message))
+	case contracts.ErrorWhenSendMessageToKafka:
+		slog.Info("In main model: event contracts.ErrorWhenSendMessageToKafka")
+
+		m.activePane = TABS_READ_WRITE_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Error.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+	case contracts.ErrorWhenSaveMessageToHistory:
+		slog.Info("In main model: event contracts.ErrorWhenSaveMessageToHistory")
+
+		m.activePane = TABS_READ_WRITE_ERROR_WINDOW
+
+		return m, m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Error.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			})
+	case contracts.SuccessWhenSendMessageToKafka:
+		slog.Info("In main model: event contracts.SuccessWhenSendMessageToKafka")
+		return m, nil
+	case contracts.UserWantsReadMessagesFromKafka:
+		cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
+		topic := m.SelectedKafkaTopic
+		partition := m.SelectedKafkaPartition
+
+		readMessagesFromKafkaCmd := func(m *Model) tea.Cmd {
+			return func() tea.Msg {
+				numberOfReadMessages := 10
+				messages, err := m.kafkaConnectorProvider.Read(cluster, topic, partition, numberOfReadMessages)
+
+				if err != nil {
+					slog.Error("In main model: error when read kafka messages", "e", err)
+					return contracts.ErrorWhenReadMessagesFromKafka{Error: err}
+				}
+
+				slog.Info("In main model: successfully got kafka messages, so emit event contracts.SuccessWhenReadMessagesFromKafka")
+
+				return contracts.SuccessWhenReadMessagesFromKafka{Messages: messages}
+			}
+		}
+
+		spinnerWhenLoadMessages := func() tea.Cmd {
+			return func() tea.Msg {
+				return contracts.StartSpinningWhenReadMessagesFromKafka{}
+			}
+		}
+
+		return m, tea.Sequence(spinnerWhenLoadMessages(), readMessagesFromKafkaCmd(m))
+	case contracts.SuccessWhenReadMessagesFromKafka:
+		slog.Info("In main model: event contracts.SuccessWhenReadMessagesFromKafka")
+
+		return m, tea.Sequence(func() tea.Msg {
+			slog.Info("In main model: emit event contracts.UpdateListOfReadMessagesFromKafkaEvent")
+			return contracts.UpdateListOfReadMessagesFromKafkaEvent{Messages: msg.Messages}
+		}, stopSpinner())
+	case contracts.ErrorWhenReadMessagesFromKafka:
+		slog.Info("In main model: event contracts.ErrorWhenReadMessagesFromKafka")
+
+		m.activePane = TABS_READ_WRITE_ERROR_WINDOW
+
+		return m, tea.Sequence(stopSpinner(), m.stackOfOverlayWindows.Push(m.errorWindow.ProvideNewOverlayWindowForErrorMessagesProvider(msg.Error.Error()),
+			overlay.OverlayConfig{
+				Placement:           overlay.Center(),
+				DimOpacity:          0.35,
+				CloseOnEscape:       false,
+				CloseOnClickOutside: false,
+			}))
+	case contracts.SuccessWhenSaveMessageToHistory:
+		slog.Info("In main model: event contracts.SuccessWhenSaveMessageToHistory")
+
+		return m, getMessagesFromHistoryCmd(m, m.SelectedKafkaTopic)
 	case contracts.SuccessLoadedKafkaPartitionsMsg:
 		partitionsString := make([]string, 0, len(msg.Partitions))
 		for _, p := range msg.Partitions {

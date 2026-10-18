@@ -239,7 +239,7 @@ func (k *KafkaConnectorProvider) Read(kafkaCluster *contracts.KafkaCluster, kafk
 		message, err := reader.ReadMessage(readCtx)
 
 		if err != nil {
-			break
+			return nil, err
 		}
 
 		res = append(res, &contracts.ReadMessagesRow{Row: []string{strconv.Itoa((int(message.Offset))), message.Time.String(), string(message.Key), string(message.Value)}})

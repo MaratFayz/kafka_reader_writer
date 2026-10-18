@@ -3,7 +3,6 @@ package readwritetabs
 import (
 	"log"
 	"log/slog"
-	"marat/fayz/kafka_reader_writer/internal/components"
 	"marat/fayz/kafka_reader_writer/internal/contracts"
 	"marat/fayz/kafka_reader_writer/internal/windows"
 	"reflect"
@@ -80,22 +79,10 @@ type KafkaReadWriteTabsComponent struct {
 	model                             *windows.Model
 	kafkaSendMessageTextAreaComponent KafkaSendMessageTextArea
 	kafkaSendMessageTableComponent    KafkaSendMessageTable
-	kafkaProducerConsumer             kafkaConsumerProducer
-	historySentMessages               historySentMessages
 	kafkaReadMessageTable             KafkaReadMessageTable
 	isLoadHistorySentMessages         atomic.Bool
 	spinnerWhenLoadMessages           spinnerWhenLoadingKafkaMessages
 	isSpinnerTick                     bool
-}
-
-type kafkaConsumerProducer interface {
-	Send(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, textToSend string) error
-	Read(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, kafkaPartition string, numberOfReadMessages int) ([]*contracts.ReadMessagesRow, error)
-}
-
-type historySentMessages interface {
-	SaveMessage(kafkaCluster *contracts.KafkaCluster, kafkaTopic string, messageToSave string) error
-	GetMessages(cluster *contracts.KafkaCluster, topic string) ([]*contracts.SentMessagesRow, error)
 }
 
 type KafkaSendMessageTextArea interface {
@@ -128,50 +115,6 @@ type spinnerWhenLoadingKafkaMessages interface {
 	View() string
 }
 
-type errorWhenSendMessageToKafka struct {
-	error error
-}
-
-type successWhenSendMessageToKafka struct {
-}
-
-type errorWhenSaveMessageToHistory struct {
-	error error
-}
-
-type successWhenSaveMessageToHistory struct {
-}
-
-type errorWhenGetMessagesFromHistory struct {
-	error error
-}
-
-type successWhenGetMessagesFromHistory struct {
-	messages []*contracts.SentMessagesRow
-}
-
-type errorWhenSetMessagesHistoryMessagesTableCmd struct {
-	error error
-}
-
-type successWhenSetMessagesHistoryMessagesTableCmd struct {
-}
-
-type successWhenReadMessagesFromKafka struct {
-	messages []*contracts.ReadMessagesRow
-}
-
-type errorWhenReadMessagesFromKafka struct {
-	error error
-}
-
-type successWhenSetMessagesToReadMessagesTableCmd struct {
-}
-
-type errorWhenSetMessagesToReadMessagesTableCmd struct {
-	error error
-}
-
 func (k *KafkaReadWriteTabsComponent) IsFocusOnTabs() bool {
 	return k.activeComponentReadTab == TABS_READ && k.activeComponentWriteTab == TABS_WRITE
 }
@@ -181,63 +124,34 @@ func (k *KafkaReadWriteTabsComponent) clearReadTableKafkaMessages() {
 }
 
 func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea.Model, tea.Cmd) {
-	getMessagesFromHistoryCmd := func() tea.Msg {
-		cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
-		topic := m.SelectedKafkaTopic
-
-		messages, err := k.historySentMessages.GetMessages(cluster, topic)
-
-		if err != nil {
-			return errorWhenGetMessagesFromHistory{error: err}
-		}
-
-		return successWhenGetMessagesFromHistory{messages: messages}
-	}
-
 	//добавить проверку, какая вкладка видима и направлять туда события
 	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
-	case components.InitList:
-		k.clearReadTableKafkaMessages()
-		cmds = append(cmds, getMessagesFromHistoryCmd)
-		return m, tea.Batch(cmds...)
-
-	case successWhenSaveMessageToHistory:
-		cmds = append(cmds, getMessagesFromHistoryCmd)
-		return m, tea.Batch(cmds...)
-	case successWhenGetMessagesFromHistory:
-		setMessagesHistoryMessagesTableCmd := func() tea.Msg {
-			err := k.kafkaSendMessageTableComponent.SetValues(msg.messages)
-
-			if err != nil {
-				return errorWhenSetMessagesHistoryMessagesTableCmd{error: err}
-			}
-
-			return successWhenSetMessagesHistoryMessagesTableCmd{}
-		}
-		cmds = append(cmds, setMessagesHistoryMessagesTableCmd)
-
-		return m, tea.Batch(cmds...)
-	case successWhenReadMessagesFromKafka:
-		setMessagesToReadMessagesTableCmd := func() tea.Msg {
-			err := k.kafkaReadMessageTable.SetValues(msg.messages)
-
-			if err != nil {
-				return errorWhenSetMessagesToReadMessagesTableCmd{error: err}
-			}
-
-			return successWhenSetMessagesToReadMessagesTableCmd{}
-		}
-
+	case contracts.StartSpinningWhenReadMessagesFromKafka:
+		slog.Info("In KafkaReadWriteTabsComponent: contracts.StartSpinningWhenReadMessagesFromKafka")
+		k.isSpinnerTick = true
+		return m, k.spinnerWhenLoadMessages.startTick
+	case contracts.StopSpinningWhenReadMessagesFromKafka:
+		slog.Info("In KafkaReadWriteTabsComponent: contracts.StopSpinningWhenReadMessagesFromKafka")
 		k.isSpinnerTick = false
-		cmds = append(cmds, setMessagesToReadMessagesTableCmd)
-
-		return m, tea.Batch(cmds...)
-	// case errorWhenReadMessagesFromKafka:
-	// 	tea.Println("errorWhenReadMessagesFromKafka", "TABLE_READ", "err")
-	// 	return m, tea.Batch(cmds...)
+		return m, nil
+	case contracts.ClearHistoryMessagesTableEvent:
+		slog.Info("In KafkaReadWriteTabsComponent: contracts.ClearHistoryMessagesTableEvent")
+		k.clearReadTableKafkaMessages()
+		return m, nil
+	case contracts.UpdateListOfMessagesFromHistoryEvent:
+		slog.Info("In KafkaReadWriteTabsComponent: contracts.UpdateListOfMessagesFromHistoryEvent")
+		k.kafkaSendMessageTableComponent.SetValues(msg.Messages)
+		return m, nil
+	case contracts.UpdateListOfReadMessagesFromKafkaEvent:
+		slog.Info("In KafkaReadWriteTabsComponent: contracts.UpdateListOfReadMessagesFromKafkaEvent")
+		k.kafkaReadMessageTable.SetValues(msg.Messages)
+		return m, nil
 	case tea.KeyPressMsg:
+		slog.Info("In KafkaReadWriteTabsComponent: tea.KeyPressMsg", "msg", msg,
+			"k.activeTab", k.activeTab, "k.activeComponentWriteTab", k.activeComponentWriteTab)
+
 		switch k.activeTab {
 		case WRITE:
 			switch k.activeComponentWriteTab {
@@ -251,32 +165,10 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 					return m, tea.Batch(cmds...)
 				case "ctrl+s":
 					textToSend := k.kafkaSendMessageTextAreaComponent.GetText()
-					cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
-					topic := m.SelectedKafkaTopic
-					partition := m.SelectedKafkaPartition
 
-					sendMessageCmd := func() tea.Msg {
-						err := k.kafkaProducerConsumer.Send(cluster, topic, partition, textToSend)
-
-						if err != nil {
-							return errorWhenSendMessageToKafka{error: err}
-						}
-
-						return successWhenSendMessageToKafka{}
+					return m, func() tea.Msg {
+						return contracts.SendMessageToKafka{Message: textToSend}
 					}
-
-					saveMessageToHistoryCmd := func() tea.Msg {
-						err := k.historySentMessages.SaveMessage(cluster, topic, textToSend)
-
-						if err != nil {
-							return errorWhenSaveMessageToHistory{error: err}
-						}
-
-						return successWhenSaveMessageToHistory{}
-					}
-
-					cmds = append(cmds, sendMessageCmd, saveMessageToHistoryCmd)
-					return m, tea.Batch(cmds...)
 				default:
 					var ok bool
 					m2, cmd := k.kafkaSendMessageTextAreaComponent.Update(msg, m)
@@ -357,29 +249,13 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 					k.activeComponentReadTab = max(k.activeComponentReadTab-1, 0)
 					return m, tea.Batch(cmds...)
 				case "ctrl+s":
-					cluster := m.GetClusterByTitle(m.SelectedKafkaCluster)
-					topic := m.SelectedKafkaTopic
-					partition := m.SelectedKafkaPartition
+					slog.Info("In KafkaReadWriteTabsComponent: send message to kafka")
 
-					readMessagesFromKafkaCmd := func() tea.Msg {
-						numberOfReadMessages := 10
-						messages, err := k.kafkaProducerConsumer.Read(cluster, topic, partition, numberOfReadMessages)
+					return m, func() tea.Msg {
+						slog.Info("In KafkaReadWriteTabsComponent: emit event contracts.UserWantsReadMessagesFromKafka")
 
-						if err != nil {
-							tea.Println("Errrrr 1")
-							slog.Error("Errrrr 1", "e", err)
-							return errorWhenReadMessagesFromKafka{error: err}
-						}
-
-						// slog.Error("Mes 1", "e", messages)
-						tea.Println("Mes 1 1")
-
-						return successWhenReadMessagesFromKafka{messages: messages}
+						return contracts.UserWantsReadMessagesFromKafka{}
 					}
-
-					cmds = append(cmds, readMessagesFromKafkaCmd, k.spinnerWhenLoadMessages.startTick)
-					k.isSpinnerTick = true
-					return m, tea.Batch(cmds...)
 				default:
 					var ok bool
 					m2, cmd := k.kafkaReadMessageTable.Update(msg, m)
@@ -523,13 +399,12 @@ func (k *KafkaReadWriteTabsComponent) View() string {
 	return s.doc.Render(doc.String())
 }
 
-func CreateKafkaReadWriteTabsComponent(m *windows.Model, ks KafkaSendMessageTextArea, kt KafkaSendMessageTable,
-	kafkaSender kafkaConsumerProducer, historySentMessages historySentMessages, kr KafkaReadMessageTable,
+func CreateKafkaReadWriteTabsComponent(m *windows.Model, ks KafkaSendMessageTextArea, kt KafkaSendMessageTable, kr KafkaReadMessageTable,
 	spinnerWhenLoadMessages spinnerWhenLoadingKafkaMessages) *KafkaReadWriteTabsComponent {
 	tabs := []string{"Read", "Write"}
 	tabContent := []string{"Lip Gloss Tab", "Blush Tab", "Eye Shadow Tab", "Mascara Tab", "Foundation Tab"}
 	k := &KafkaReadWriteTabsComponent{Tabs: tabs, TabContent: tabContent, styles: newStyles(true), model: m, kafkaSendMessageTextAreaComponent: ks,
-		kafkaSendMessageTableComponent: kt, kafkaProducerConsumer: kafkaSender, historySentMessages: historySentMessages, kafkaReadMessageTable: kr,
+		kafkaSendMessageTableComponent: kt, kafkaReadMessageTable: kr,
 		isLoadHistorySentMessages: atomic.Bool{}, spinnerWhenLoadMessages: spinnerWhenLoadMessages}
 	return k
 }
