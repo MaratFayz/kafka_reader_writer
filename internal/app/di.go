@@ -207,11 +207,11 @@ func (d *diContainer) createKafkaConnector() *connection.KafkaConnectorProvider 
 			return d.kafkaConnector
 		}
 
-		// closer.Add("кафка", func(_ context.Context) error {
-		// 	return d.kafkaConnector.Close()
-		// })
-
 		d.kafkaConnector = connection.NewKafkaConnector()
+
+		closer.Add("кафка", func(_ context.Context) error {
+			return d.kafkaConnector.Close()
+		})
 	}
 
 	return d.kafkaConnector

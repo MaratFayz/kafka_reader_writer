@@ -249,7 +249,7 @@ func (k *KafkaReadWriteTabsComponent) Update(msg tea.Msg, m *windows.Model) (tea
 					k.activeComponentReadTab = max(k.activeComponentReadTab-1, 0)
 					return m, tea.Batch(cmds...)
 				case "ctrl+s":
-					slog.Info("In KafkaReadWriteTabsComponent: send message to kafka")
+					slog.Info("In KafkaReadWriteTabsComponent: read message from kafka")
 
 					return m, func() tea.Msg {
 						slog.Info("In KafkaReadWriteTabsComponent: emit event contracts.UserWantsReadMessagesFromKafka")
